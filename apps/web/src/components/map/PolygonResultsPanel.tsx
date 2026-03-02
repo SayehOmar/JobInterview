@@ -1,149 +1,240 @@
+// components/PolygonResultsPanel.tsx
 'use client';
 
-import { X, Trees, Ruler, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { X, Trees, Ruler, PieChart, BarChart3, Leaf } from 'lucide-react';
+
+interface SpeciesDistribution {
+    species: string;
+    areaHectares: number;
+    percentage: number;
+}
+
+interface AnalysisResults {
+    plotCount?: number;
+    speciesDistribution?: SpeciesDistribution[];
+    forestTypes?: string[];
+    totalForestArea?: number;
+    coveragePercentage?: number;
+}
+
+interface PolygonResult {
+    id: string;
+    name: string;
+    areaHectares: number;
+    analysisResults?: AnalysisResults | null;
+    status: string;
+    createdAt: string;
+}
 
 interface PolygonResultsPanelProps {
-    result: {
-        id: string;
-        name: string;
-        areaHectares: number;
-        status: string;
-        analysisResults?: {
-            plotCount?: number;
-            totalForestArea?: number;
-            forestTypes?: string[];
-            speciesDistribution?: Array<{
-                species: string;
-                areaHectares: number;
-                percentage: number;
-            }>;
-        } | null;
-    };
+    result: PolygonResult;
     onClose: () => void;
 }
 
 export function PolygonResultsPanel({ result, onClose }: PolygonResultsPanelProps) {
-    const hasAnalysis = result.status === 'completed' && result.analysisResults;
+    const { name, areaHectares, analysisResults, status } = result;
+
+    const stats = analysisResults || {
+        speciesDistribution: [],
+        totalForestArea: 0,
+        coveragePercentage: 0,
+        plotCount: 0,
+        forestTypes: []
+    };
+
+    // Sort species by area (largest first)
+    const sortedSpecies = [...(stats.speciesDistribution || [])]
+        .sort((a, b) => b.areaHectares - a.areaHectares);
+
+    const totalForestArea = stats.totalForestArea || 0;
+    const coveragePercentage = stats.coveragePercentage || 0;
+    const hasData = sortedSpecies.length > 0;
 
     return (
-        <div className="absolute bottom-3 left-90 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden max-h-[80vh] overflow-y-auto m-4">
-        <div className=" bottom-4 left-4 z-20 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden max-h-[80vh] overflow-y-auto">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
             {/* Header */}
-            <div className="p-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white flex items-center justify-between sticky top-0">
-                <div>
-                    <h3 className="font-semibold text-lg">{result.name}</h3>
-                    <p className="text-green-100 text-sm">Polygon Analysis</p>
+            <div className="p-4 bg-[#0b4a59] text-white flex items-center justify-between shrink-0 rounded-t-xl">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white/10 rounded-lg">
+                        <PieChart size={20} />
+                    </div>
+                    <div>
+                        <h3 className="font-semibold text-lg">{name}</h3>
+                        <p className="text-xs text-gray-300">
+                            Analysis Status: <span className="capitalize font-medium">{status}</span>
+                        </p>
+                    </div>
                 </div>
-                <button onClick={onClose} className="hover:bg-white/20 rounded p-1">
+                <button
+                    onClick={onClose}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                >
                     <X size={20} />
                 </button>
             </div>
 
-            <div className="p-4 space-y-4">
-                {/* Basic Info - Always shown */}
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                        <div className="flex items-center gap-2 text-blue-700 mb-1">
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {/* Summary Stats */}
+                <div className="grid grid-cols-3 gap-3">
+                    {/* Total Area */}
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                        <div className="flex items-center gap-2 text-blue-700 mb-2">
                             <Ruler size={16} />
-                            <span className="text-xs font-medium">Total Area</span>
+                            <span className="text-xs font-bold uppercase tracking-wide">Total Area</span>
                         </div>
-                        <p className="text-2xl font-bold text-blue-900">
-                            {result.areaHectares.toFixed(2)} <span className="text-sm">ha</span>
+                        <p className="text-2xl font-bold text-gray-900">
+                            {areaHectares.toFixed(2)}
+                            <span className="text-sm font-normal text-gray-600 ml-1">ha</span>
                         </p>
                     </div>
-                    <div className="bg-gray-50 p-3 rounded-lg">
-                        <div className="flex items-center gap-2 text-gray-700 mb-1">
-                            {result.status === 'completed' ? <CheckCircle size={16} className="text-green-600" /> :
-                                result.status === 'pending' ? <Clock size={16} className="text-yellow-600" /> :
-                                    <AlertCircle size={16} className="text-red-600" />}
-                            <span className="text-xs font-medium">Status</span>
+
+                    {/* Forest Area */}
+                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4 border border-emerald-200">
+                        <div className="flex items-center gap-2 text-emerald-700 mb-2">
+                            <Trees size={16} />
+                            <span className="text-xs font-bold uppercase tracking-wide">Forest Cover</span>
                         </div>
-                        <p className="text-lg font-bold text-gray-900 capitalize">
-                            {result.status}
+                        <p className="text-2xl font-bold text-gray-900">
+                            {totalForestArea.toFixed(2)}
+                            <span className="text-sm font-normal text-gray-600 ml-1">ha</span>
+                        </p>
+                        <p className="text-xs text-emerald-600 font-medium mt-1">
+                            {coveragePercentage.toFixed(1)}% of polygon
+                        </p>
+                    </div>
+
+                    {/* Species Count */}
+                    <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-4 border border-amber-200">
+                        <div className="flex items-center gap-2 text-amber-700 mb-2">
+                            <Leaf size={16} />
+                            <span className="text-xs font-bold uppercase tracking-wide">Species</span>
+                        </div>
+                        <p className="text-2xl font-bold text-gray-900">
+                            {sortedSpecies.length}
+                        </p>
+                        <p className="text-xs text-amber-600 font-medium mt-1">
+                            {stats.plotCount || 0} forest plots
                         </p>
                     </div>
                 </div>
 
-                {/* Forest Analysis - Conditional */}
-                {hasAnalysis ? (
-                    <div className="space-y-4">
-                        <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-                            <div className="flex items-center gap-2 text-green-800 mb-2">
-                                <Trees size={18} />
-                                <span className="font-medium">Forest Coverage</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                                <div>
-                                    <span className="text-green-600">Plots:</span>
-                                    <span className="ml-1 font-semibold">{result.analysisResults?.plotCount}</span>
-                                </div>
-                                <div>
-                                    <span className="text-green-600">Forest Area:</span>
-                                    <span className="ml-1 font-semibold">
-                    {result.analysisResults?.totalForestArea?.toFixed(2)} ha
-                  </span>
-                                </div>
-                            </div>
+                {/* Forest Types */}
+                {stats.forestTypes && stats.forestTypes.length > 0 && (
+                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-3">Forest Types Found</h4>
+                        <div className="flex flex-wrap gap-2">
+                            {stats.forestTypes.map((type, idx) => (
+                                <span
+                                    key={idx}
+                                    className="px-3 py-1.5 bg-[#0b4a59]/10 text-[#0b4a59] text-xs rounded-full font-medium border border-[#0b4a59]/20"
+                                >
+                                    {type}
+                                </span>
+                            ))}
                         </div>
+                    </div>
+                )}
 
-                        {/* Forest Types */}
-                        {result.analysisResults?.forestTypes && result.analysisResults.forestTypes.length > 0 && (
-                            <div>
-                                <h4 className="text-sm font-medium text-gray-700 mb-2">Forest Types</h4>
-                                <div className="flex flex-wrap gap-2">
-                                    {result.analysisResults.forestTypes.map((type) => (
-                                        <span key={type} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
-                      {type}
-                    </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                {/* Species Distribution */}
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                    <div className="flex items-center gap-2 mb-4">
+                        <BarChart3 size={20} className="text-[#0b4a59]" />
+                        <h4 className="font-semibold text-gray-900">Tree Species Distribution</h4>
+                    </div>
 
-                        {/* Species Distribution */}
-                        {result.analysisResults?.speciesDistribution && result.analysisResults.speciesDistribution.length > 0 && (
-                            <div>
-                                <h4 className="text-sm font-medium text-gray-700 mb-2">Species Distribution</h4>
-                                <div className="space-y-2">
-                                    {result.analysisResults.speciesDistribution.map((item) => (
-                                        <div key={item.species} className="flex items-center justify-between text-sm">
-                                            <span className="text-gray-600 truncate max-w-[120px]">{item.species}</span>
-                                            <div className="flex items-center gap-2 flex-1 ml-2">
-                                                <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                    <div
-                                                        className="h-full bg-green-500"
-                                                        style={{ width: `${Math.min(item.percentage, 100)}%` }}
-                                                    />
-                                                </div>
-                                                <span className="text-gray-900 font-medium w-20 text-right text-xs">
-                          {item.areaHectares.toFixed(1)} ha
-                        </span>
+                    {!hasData ? (
+                        <div className="text-center py-8">
+                            <Trees size={40} className="mx-auto mb-3 text-gray-300" />
+                            <p className="text-gray-500">No forest data found in this polygon</p>
+                            {status === 'pending' && (
+                                <p className="text-xs text-amber-600 mt-2">
+                                    Forest data may still be loading. Try reanalyzing later.
+                                </p>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {sortedSpecies.map((species, index) => (
+                                <div
+                                    key={`${species.species}-${index}`}
+                                    className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm"
+                                >
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 bg-[#0b4a59] text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">
+                                                {index + 1}
+                                            </div>
+                                            <div>
+                                                <h5 className="font-semibold text-gray-900">
+                                                    {species.species}
+                                                </h5>
+                                                <p className="text-xs text-gray-500">
+                                                    {species.percentage.toFixed(1)}% of forest area
+                                                </p>
                                             </div>
                                         </div>
-                                    ))}
+                                        <div className="text-right">
+                                            <p className="text-lg font-bold text-emerald-600">
+                                                {species.areaHectares.toFixed(2)}
+                                                <span className="text-sm font-normal text-gray-500 ml-1">ha</span>
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Progress Bar */}
+                                    <div className="mt-3 ml-11">
+                                        <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-gradient-to-r from-[#0b4a59] to-emerald-500 rounded-full transition-all duration-500"
+                                                style={{ width: `${species.percentage}%` }}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Summary Footer */}
+                {hasData && (
+                    <div className="bg-[#0b4a59]/5 rounded-xl p-4 border border-[#0b4a59]/20">
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Total Species:</span>
+                                <span className="font-semibold text-[#0b4a59]">{sortedSpecies.length}</span>
                             </div>
-                        )}
-                    </div>
-                ) : (
-                    /* No forest data yet */
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                        <div className="flex items-start gap-3">
-                            <Clock className="text-yellow-600 mt-0.5" size={20} />
-                            <div>
-                                <h4 className="font-medium text-yellow-800">Forest Data Pending</h4>
-                                <p className="text-sm text-yellow-700 mt-1">
-                                    Your polygon has been saved with an area of <strong>{result.areaHectares.toFixed(2)} hectares</strong>.
-                                </p>
-                                <p className="text-sm text-yellow-700 mt-2">
-                                    Forest species analysis will be available once forest data layers are connected to the system.
-                                </p>
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Forest Plots:</span>
+                                <span className="font-semibold text-[#0b4a59]">{stats.plotCount || 0}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Non-Forest Area:</span>
+                                <span className="font-semibold text-gray-700">
+                                    {(areaHectares - totalForestArea).toFixed(2)} ha
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Analysis Date:</span>
+                                <span className="font-semibold text-gray-700">
+                                    {new Date(result.createdAt).toLocaleDateString()}
+                                </span>
                             </div>
                         </div>
                     </div>
                 )}
             </div>
-        </div>
-        </div>);
 
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-200 bg-gray-50 shrink-0 rounded-b-xl">
+                <button
+                    onClick={onClose}
+                    className="w-full px-4 py-2.5 text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors font-medium"
+                >
+                    Close Analysis
+                </button>
+            </div>
+        </div>
+    );
 }

@@ -1,4 +1,3 @@
-// components/ForestMap.tsx
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -107,7 +106,7 @@ export function ForestMap() {
             setDrawnGeometry(geometry);
             setShowSaveModal(true);
             setIsDrawing(false);
-            draw.current?.changeMode('simple_select');
+            // draw.current?.changeMode('simple_select');
         });
 
         // Handle draw mode changes
@@ -143,12 +142,12 @@ export function ForestMap() {
             // Skip if in drawing mode
             if (draw.current?.getMode() === 'draw_polygon') return;
 
-            // Skip if clicking on drawn features
-            const drawFeatures = map.current!.queryRenderedFeatures(e.point, {
-                layers: ['gl-draw-polygon-fill-inactive.cold', 'gl-draw-polygon-fill-inactive.hot',
-                    'gl-draw-polygon-stroke-inactive.cold', 'gl-draw-polygon-stroke-inactive.hot']
-            });
-            if (drawFeatures.length > 0) return;
+            // Skip if any draw feature is selected (clicked on existing polygon)
+            const selected = draw.current?.getSelected();
+            // @ts-ignore
+            if (selected?.features?.length > 0) return;
+
+            // REMOVED: queryRenderedFeatures - causes error when layers don't exist
 
             setIsQuerying(true);
             const { lng, lat } = e.lngLat;
@@ -235,6 +234,7 @@ export function ForestMap() {
                 }
             });
 
+            // @ts-ignore
             setAnalysisResult(data.savePolygon);
             setShowResults(true);
             setShowSaveModal(false);
@@ -263,9 +263,11 @@ export function ForestMap() {
 
     // Display saved polygons (without fitting bounds)
     useEffect(() => {
+        // @ts-ignore
         if (!map.current || !savedPolygonsData?.myPolygons || !mapLoaded) return;
 
         const timer = setTimeout(() => {
+            // @ts-ignore
             displaySavedPolygonsOnMap(map.current!, savedPolygonsData.myPolygons, false);
         }, 500);
 
@@ -378,10 +380,10 @@ export function ForestMap() {
             {/* Feature Query Popup */}
             {queryPopup?.visible && (
                 <div
-                    className="absolute pointer-events-none"
+                    className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
                     style={{
-                        left: map.current?.project([queryPopup.lng, queryPopup.lat]).x,
-                        top: map.current?.project([queryPopup.lng, queryPopup.lat]).y,
+                       /* left: map.current?.project([queryPopup.lng, queryPopup.lat]).x,
+                        top: map.current?.project([queryPopup.lng, queryPopup.lat]).y,*/
                         zIndex: 50
                     }}
                 >

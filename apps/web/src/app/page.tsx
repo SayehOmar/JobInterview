@@ -16,17 +16,6 @@ export default function Home() {
   // @ts-ignore
   const { loading: meLoading } = useQuery(ME_QUERY, {
     skip: typeof window === 'undefined',
-    onCompleted: (data: any) => {
-      if (data?.me) {
-        // Token is valid, update user data
-        const token = localStorage.getItem('token') || '';
-        setAuth(data.me, token);
-      }
-    },
-    onError: () => {
-      // Token invalid or expired
-      logout();
-    },
   });
 
   useEffect(() => {

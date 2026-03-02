@@ -9,7 +9,7 @@ export const SAVE_POLYGON_MUTATION = gql`
       areaHectares
       status
       createdAt
-      geometry
+  # geometry
       analysisResults {
         plotCount
         totalForestArea
@@ -19,7 +19,6 @@ export const SAVE_POLYGON_MUTATION = gql`
           species
           areaHectares
           percentage
-          geometry
         }
       }
     }
@@ -53,5 +52,28 @@ export const GET_MY_POLYGONS = gql`
 export const DELETE_POLYGON_MUTATION = gql`
   mutation DeletePolygon($polygonId: String!) {
     deletePolygon(polygonId: $polygonId)
+  }
+`;
+
+export const REANALYZE_POLYGON_MUTATION = gql`
+  mutation ReanalyzePolygon($polygonId: String!) {
+    reanalyzePolygon(polygonId: $polygonId) {
+      id
+      name
+      areaHectares
+      status
+      createdAt
+      analysisResults {
+        plotCount
+        totalForestArea
+        coveragePercentage
+        forestTypes
+        speciesDistribution {
+          species
+          areaHectares
+          percentage
+        }
+      }
+    }
   }
 `;

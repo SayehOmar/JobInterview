@@ -34,8 +34,11 @@ export const getFeatureInfo = async (
     const bounds = map.getBounds();
 
     // Convert bounds to EPSG:3857
+    // @ts-ignore
     const [minx, miny] = lngLatTo3857(bounds.getWest(), bounds.getSouth());
+    // @ts-ignore
     const [maxx, maxy] = lngLatTo3857(bounds.getEast(), bounds.getNorth());
+
 
     const params = new URLSearchParams({
         service: 'WMS',

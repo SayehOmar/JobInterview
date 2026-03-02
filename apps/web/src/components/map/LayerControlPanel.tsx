@@ -61,15 +61,19 @@ export function LayerControlPanel({
                         {layers.map((layer) => (
                             <div
                                 key={layer.id}
-                                className="flex items-center justify-between px-2 py-1 hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                                className="flex items-center justify-between px-1 py-1 hover:bg-gray-50 border-b border-gray-100 last:border-0"
                             >
                                 <div className="flex items-center gap-1.5 min-w-0">
                                     <div
                                         className="w-2 h-2 rounded-full shrink-0"
-                                        style={{ backgroundColor: layer.color }}
+                                        style={{backgroundColor: layer.color}}
                                     />
-                                    <span className={`text-xs truncate ${isVisible(layer) ? 'text-gray-900' : 'text-gray-400'}`}>
+                                    <span
+                                        className={`text-xs truncate ${isVisible(layer) ? 'text-gray-900' : 'text-gray-400'}`}>
                                         {layer.name}
+                                    </span>
+                                    <span className="text-[8px] text-gray-400">
+                                        At Zoom: {layer.minZoom}-{layer.maxZoom}
                                     </span>
                                 </div>
                                 <button

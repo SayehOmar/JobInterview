@@ -17,7 +17,7 @@ export class UserPolygon {
     @Column()
     name!: string;
 
-    @Column('geometry', { spatialFeatureType: 'Polygon', srid: 4326 })
+    @Column('geometry', { spatialFeatureType: 'MultiPolygon', srid: 4326 })
     geometry!: any;
 
     @Column('double precision')
