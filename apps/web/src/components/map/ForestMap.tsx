@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import mapboxgl from 'mapbox-gl';
-import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 import { useQuery, useMutation } from '@apollo/client/react';
 import { useMapStore } from '@/store/mapStore';
@@ -12,6 +11,7 @@ import { UPDATE_MAP_STATE } from '@/graphql/auth';
 import { GET_MY_POLYGONS, SAVE_POLYGON_MUTATION } from '@/graphql/polygons';
 import { queryAllLayers } from '@/services/wmsFeatureInfo';
 import { WMS_LAYERS, getWMSTileUrl, WMSLayerConfig } from '@/services/wmsLayers';
+import { createMapRuntime, MapStyleKey } from '@/services/map/mapProviders';
 
 import { FilterPanel } from './FilterPanel';
 import { SavePolygonModal } from './SavePolygonModal';
@@ -21,8 +21,6 @@ import { LayerControlPanel } from './LayerControlPanel';
 import { FeatureQueryPopup } from './FeatureQueryPopup';
 
 import { Layers, LogOut, Map as MapIcon, Satellite, Mountain, Sun, Moon } from 'lucide-react';
-
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
 // Base layer configurations
 const BASE_LAYERS = {
@@ -79,8 +77,10 @@ export function ForestMap() {
     } | null>(null);
 
     const mapContainer = useRef<HTMLDivElement>(null);
-    const map = useRef<mapboxgl.Map | null>(null);
-    const draw = useRef<MapboxDraw | null>(null);
+    const map = useRef<any>(null);
+    const draw = useRef<any>(null);
+    const mapProvider = useRef<'mapbox' | 'maplibre' | null>(null);
+    const setBaseStyle = useRef<((styleKey: MapStyleKey) => void) | null>(null);
 
     const { lng, lat, zoom, filters, showCadastre, setViewState, setShowCadastre, setFilters } = useMapStore();
     const { user, logout, updateUser } = useAuthStore();
@@ -97,97 +97,106 @@ export function ForestMap() {
         const initialLat = user?.lastLat ?? lat;
         const initialZoom = user?.lastZoom ?? zoom;
 
-        map.current = new mapboxgl.Map({
-            container: mapContainer.current,
-            style: BASE_LAYERS.satellite.url,
-            center: [initialLng, initialLat],
-            zoom: initialZoom,
-        });
+        let destroyed = false;
 
-        map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-        map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right');
+        (async () => {
+            const runtime = await createMapRuntime({
+                container: mapContainer.current!,
+                center: [initialLng, initialLat],
+                zoom: initialZoom,
+                styleKey: 'satellite',
+            });
+            if (destroyed) {
+                runtime.map?.remove?.();
+                return;
+            }
 
-        // Initialize Mapbox Draw
-        draw.current = new MapboxDraw({
-            displayControlsDefault: false,
-            controls: { polygon: true, trash: true },
-            defaultMode: 'simple_select'
-        });
-        map.current.addControl(draw.current, 'top-right');
+            map.current = runtime.map;
+            draw.current = runtime.draw;
+            mapProvider.current = runtime.provider;
+            setBaseStyle.current = runtime.setBaseStyle;
 
-        // Track zoom for layer visibility
-        const updateZoom = () => {
-            const newZoom = map.current!.getZoom();
-            setCurrentZoom(newZoom);
-            updateWMSLayerVisibility(newZoom);
-        };
+            // Track zoom for layer visibility
+            const updateZoom = () => {
+                const newZoom = map.current!.getZoom();
+                setCurrentZoom(newZoom);
+                updateWMSLayerVisibility(newZoom);
+            };
 
-        map.current.on('load', () => {
-            setMapLoaded(true);
-            addWMSLayers(map.current!);
-            updateZoom();
-        });
+            map.current.on('load', () => {
+                setMapLoaded(true);
+                addWMSLayers(map.current!);
+                updateZoom();
+            });
 
-        map.current.on('zoom', updateZoom);
+            map.current.on('zoom', updateZoom);
 
-        // Handle polygon creation
-        map.current.on('draw.create', (e) => {
-            const geometry = e.features[0].geometry;
-            setDrawnGeometry(geometry);
-            setShowSaveModal(true);
-            setIsDrawing(false);
-        });
+            // Handle polygon creation
+            map.current.on('draw.create', (e: any) => {
+                const geometry = e.features[0].geometry;
+                setDrawnGeometry(geometry);
+                setShowSaveModal(true);
+                setIsDrawing(false);
+            });
 
-        // Handle draw mode changes
-        map.current.on('draw.modechange', (e) => {
-            setIsDrawing(e.mode === 'draw_polygon');
-        });
+            // Handle draw mode changes
+            map.current.on('draw.modechange', (e: any) => {
+                setIsDrawing(e.mode === 'draw_polygon');
+            });
 
-        // Save map state on move
-        map.current.on('moveend', () => {
-            const center = map.current!.getCenter();
-            const newZoom = map.current!.getZoom();
-            setViewState(center.lng, center.lat, newZoom);
+            // Save map state on move
+            map.current.on('moveend', () => {
+                const center = map.current!.getCenter();
+                const newZoom = map.current!.getZoom();
+                setViewState(center.lng, center.lat, newZoom);
 
-            if (user) {
-                updateMapState({
-                    variables: {
-                        input: {
-                            lng: center.lng,
-                            lat: center.lat,
-                            zoom: newZoom,
-                            filters,
-                            activeLayers: wmsLayers.filter(l => l.visible).map(l => l.id),
+                if (user) {
+                    updateMapState({
+                        variables: {
+                            input: {
+                                lng: center.lng,
+                                lat: center.lat,
+                                zoom: newZoom,
+                                filters,
+                                activeLayers: wmsLayers.filter(l => l.visible).map(l => l.id),
+                            },
                         },
-                    },
-                }).then((result) => {
-                    updateUser(result.data.updateMapState);
-                }).catch(console.error);
-            }
+                    }).then((result) => {
+                        updateUser(result.data.updateMapState);
+                    }).catch(console.error);
+                }
+            });
+
+            // Feature query on click (skip if drawing)
+            const handleMapClick = async (e: any) => {
+                if (draw.current?.getMode() === 'draw_polygon') return;
+
+                const selected = draw.current?.getSelected();
+                // @ts-ignore
+                if (selected?.features?.length > 0) return;
+
+                setIsQuerying(true);
+                const { lng, lat } = e.lngLat;
+                const data = await queryAllLayers(lng, lat, map.current!);
+                setIsQuerying(false);
+
+                if (data?.region || data?.department || data?.commune || data?.forest) {
+                    setQueryPopup({ visible: true, lng, lat, data });
+                }
+            };
+
+            map.current.on('click', handleMapClick);
+        })().catch((err) => {
+            console.error('Failed to initialize map runtime', err);
         });
-
-        // Feature query on click (skip if drawing)
-        const handleMapClick = async (e: mapboxgl.MapMouseEvent) => {
-            if (draw.current?.getMode() === 'draw_polygon') return;
-
-            const selected = draw.current?.getSelected();
-            // @ts-ignore
-            if (selected?.features?.length > 0) return;
-
-            setIsQuerying(true);
-            const { lng, lat } = e.lngLat;
-            const data = await queryAllLayers(lng, lat, map.current!);
-            setIsQuerying(false);
-
-            if (data?.region || data?.department || data?.commune || data?.forest) {
-                setQueryPopup({ visible: true, lng, lat, data });
-            }
-        };
-
-        map.current.on('click', handleMapClick);
 
         return () => {
-            map.current?.remove();
+            destroyed = true;
+            map.current?.remove?.();
+            map.current = null;
+            draw.current = null;
+            mapProvider.current = null;
+            setBaseStyle.current = null;
         };
     }, [user?.id]);
 
@@ -196,7 +205,7 @@ export function ForestMap() {
         if (!map.current) return;
 
         setBaseLayer(layerKey);
-        map.current.setStyle(BASE_LAYERS[layerKey].url);
+        setBaseStyle.current?.(layerKey as MapStyleKey);
 
         // Re-add WMS layers after style change
         map.current.once('style.load', () => {
@@ -208,7 +217,7 @@ export function ForestMap() {
     };
 
     // Add WMS layers
-    const addWMSLayers = (mapInstance: mapboxgl.Map) => {
+    const addWMSLayers = (mapInstance: any) => {
         // Clean up existing layers first
         wmsLayers.forEach((layer) => {
             const sourceId = `wms-${layer.id}`;
@@ -326,7 +335,7 @@ export function ForestMap() {
         return () => clearTimeout(timer);
     }, [savedPolygonsData, mapLoaded]);
 
-    const displaySavedPolygonsOnMap = (mapInstance: mapboxgl.Map, polygons: any[], fitBounds: boolean = false) => {
+    const displaySavedPolygonsOnMap = (mapInstance: any, polygons: any[], fitBounds: boolean = false) => {
         if (!mapInstance.isStyleLoaded()) {
             setTimeout(() => displaySavedPolygonsOnMap(mapInstance, polygons, fitBounds), 200);
             return;

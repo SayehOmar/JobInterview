@@ -17,7 +17,7 @@ interface AuthState {
     token: string | null;
     isAuthenticated: boolean;
     isLoading: boolean;
-    setAuth: (user: User, token: string) => void;
+    setAuth: (user: User, token?: string) => void;
     logout: () => void;
     setLoading: (loading: boolean) => void;
     updateUser: (updates: Partial<User>) => void;
@@ -25,15 +25,18 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
     persist(
-        (set) => ({
+        (set, get) => ({
             user: null,
             token: null,
             isAuthenticated: false,
             isLoading: true,
 
             setAuth: (user, token) => {
-                localStorage.setItem('token', token);
-                set({ user, token, isAuthenticated: true, isLoading: false });
+                const resolvedToken = token ?? (typeof window !== 'undefined' ? localStorage.getItem('token') : null) ?? get().token;
+                if (token) {
+                    localStorage.setItem('token', token);
+                }
+                set({ user, token: resolvedToken, isAuthenticated: true, isLoading: false });
             },
 
             logout: () => {
@@ -49,6 +52,10 @@ export const useAuthStore = create<AuthState>()(
         }),
         {
             name: 'auth-storage',
+            onRehydrateStorage: () => (state) => {
+                // Ensure auth routes don't get stuck showing a loading spinner forever
+                state?.setLoading(false);
+            },
         }
     )
 );

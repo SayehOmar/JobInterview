@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -15,16 +16,22 @@ import { Request, Response } from 'express';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DATABASE_HOST,
-      port: parseInt(process.env.DATABASE_PORT || '5432', 10),
-      username: process.env.DATABASE_USERNAME,
-      password: process.env.DATABASE_PASSWORD,
-      database: process.env.DATABASE_NAME,
-      entities: [User, ForestPlot],
-      synchronize: process.env.NODE_ENV === 'development', // Auto-create tables in dev
-      logging: process.env.NODE_ENV === 'development',
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
+        return {
+          type: 'postgres' as const,
+          host: configService.get<string>('DATABASE_HOST') ?? 'localhost',
+          port: parseInt(configService.get<string>('DATABASE_PORT') ?? '5432', 10),
+          username: configService.get<string>('DATABASE_USERNAME') ?? 'postgres',
+          password: configService.get<string>('DATABASE_PASSWORD') ?? '',
+          database: configService.get<string>('DATABASE_NAME') ?? 'forest_bd_viewer',
+          entities: [User, ForestPlot],
+          synchronize: nodeEnv === 'development', // Auto-create tables in dev
+          logging: nodeEnv === 'development',
+        };
+      },
     }),
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
