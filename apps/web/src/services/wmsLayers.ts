@@ -1,6 +1,32 @@
 const GEOSERVER_URL = '/geoserver'; // Proxy through Next.js
 const WORKSPACE = process.env.NEXT_PUBLIC_GEOSERVER_WORKSPACE || 'prod';
 
+/** Normalize layer color strings (hex, rgb(), etc.) to #rrggbb for UI and map tint. */
+export function normalizeLayerColorToHex(input: string): string {
+    const s = input.trim();
+    if (s.startsWith('#')) {
+        const hex = s.slice(1);
+        if (hex.length === 3) {
+            return (
+                '#' +
+                hex
+                    .split('')
+                    .map((c) => c + c)
+                    .join('')
+            );
+        }
+        return '#' + hex.slice(0, 6);
+    }
+    const rgb = s.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+    if (rgb) {
+        const r = Math.min(255, parseInt(rgb[1], 10));
+        const g = Math.min(255, parseInt(rgb[2], 10));
+        const b = Math.min(255, parseInt(rgb[3], 10));
+        return '#' + [r, g, b].map((x) => x.toString(16).padStart(2, '0')).join('');
+    }
+    return '#666666';
+}
+
 export interface WMSLayerConfig {
     id: string;
     name: string;

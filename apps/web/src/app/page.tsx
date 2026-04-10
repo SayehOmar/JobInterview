@@ -42,7 +42,7 @@ export default function Home() {
 
   if (isLoading || meLoading) {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="fixed inset-0 flex h-[100dvh] items-center justify-center overflow-hidden bg-gray-900">
           <div className="flex items-center gap-3 text-white">
             <Loader2 className="animate-spin" size={24} />
             <span className="text-lg">Loading map...</span>

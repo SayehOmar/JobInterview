@@ -1,5 +1,5 @@
 import { InputType, Field, Float } from '@nestjs/graphql';
-import { IsNumber, IsOptional, IsObject } from 'class-validator';
+import { IsNumber, IsOptional, IsObject, IsArray, IsString } from 'class-validator';
 
 @InputType()
 export class MapFiltersInput {
@@ -38,4 +38,11 @@ export class MapStateInput {
     @IsObject()
     @IsOptional()
     filters?: MapFiltersInput;
+
+    /** WMS layer ids currently visible (e.g. region, department, commune, forest). */
+    @Field(() => [String], { nullable: true })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    activeLayers?: string[];
 }

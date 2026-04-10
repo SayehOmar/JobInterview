@@ -21,7 +21,7 @@ export default function AuthPage() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
+            <div className="fixed inset-0 z-10 flex items-center justify-center overflow-y-auto bg-gradient-to-br from-slate-50 to-blue-50">
                 <div className="flex items-center gap-3 text-[#0b4a59]">
                     <div className="w-6 h-6 border-2 border-[#0b4a59] border-t-transparent rounded-full animate-spin" />
                     Loading...
@@ -31,7 +31,7 @@ export default function AuthPage() {
     }
 
     return (
-        <div className="min-h-screen flex flex-col lg:flex-row bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="fixed inset-0 z-10 flex flex-col overflow-y-auto lg:flex-row bg-gradient-to-br from-slate-50 to-blue-50">
             {/* Left Side - Branding */}
             <div
                 className="lg:w-1/2 flex flex-col justify-center items-center p-8 lg:p-16 text-white"

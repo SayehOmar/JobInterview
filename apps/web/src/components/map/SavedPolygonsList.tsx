@@ -8,12 +8,15 @@ interface SavedPolygonsListProps {
     onSelectPolygon: (polygon: any) => void;
     onHighlightPolygon?: (polygon: any) => void;  // New: for map highlighting
     selectedPolygonId?: string | null;
+    /** When false and there are no saved polygons, the empty-state card is not shown. */
+    showEmptyState?: boolean;
 }
 
 export function SavedPolygonsList({
                                       onSelectPolygon,
                                       onHighlightPolygon,
-                                      selectedPolygonId
+                                      selectedPolygonId,
+                                      showEmptyState = false,
                                   }: SavedPolygonsListProps) {
     const { data, loading, refetch } = useQuery(GET_MY_POLYGONS);
     const [deletePolygon] = useMutation(DELETE_POLYGON_MUTATION);
@@ -31,9 +34,12 @@ export function SavedPolygonsList({
         onHighlightPolygon?.(polygon);
     };
 
-    if (loading) {
+    const polygons = data?.myPolygons || [];
+
+    // Initial request: show skeleton until we know whether the user has saved polygons.
+    if (loading && data === undefined) {
         return (
-            <div className="absolute top-20 left-4 z-10 w-80 bg-white rounded-lg shadow-lg p-4">
+            <div className="relative w-full rounded-xl border border-gray-200 bg-white p-4 shadow-md">
                 <div className="animate-pulse space-y-3">
                     <div className="h-4 bg-gray-200 rounded w-3/4"></div>
                     <div className="h-4 bg-gray-200 rounded"></div>
@@ -42,22 +48,39 @@ export function SavedPolygonsList({
         );
     }
 
-    const polygons = data?.myPolygons || [];
+    if (loading && (polygons.length > 0 || showEmptyState)) {
+        return (
+            <div className="relative w-full rounded-xl border border-gray-200 bg-white p-4 shadow-md">
+                <div className="animate-pulse space-y-3">
+                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                    <div className="h-4 bg-gray-200 rounded"></div>
+                </div>
+            </div>
+        );
+    }
+
+    if (loading) {
+        return null;
+    }
+
+    if (polygons.length === 0 && !showEmptyState) {
+        return null;
+    }
 
     if (polygons.length === 0) {
         return (
-            <div className="absolute top-65 left-4 z-10 w-80 bg-white rounded-lg shadow-lg border border-gray-200 max-h-[60vh] overflow-y-auto">
-                <div className="text-center text-gray-500 py-4">
-                    <MapPin size={32} className="mx-auto mb-2 text-gray-300" />
+            <div className="relative flex min-h-[168px] flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-md">
+                <div className="flex flex-1 flex-col items-center justify-center px-3 py-6 text-center text-gray-500">
+                    <MapPin size={28} className="mx-auto mb-2 text-gray-300" />
                     <p className="text-sm">No saved polygons yet.</p>
-                    <p className="text-xs text-gray-400 mt-1">Draw a polygon to get started!</p>
+                    <p className="text-xs text-gray-400 mt-1">Saved areas will appear here after you save a draw.</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="absolute top-65 left-4 z-10 w-80 bg-white rounded-lg shadow-lg border border-gray-200 max-h-[60vh] overflow-y-auto">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-md">
             <div className="p-3 bg-gray-50 border-b border-gray-200 sticky top-0 flex items-center justify-between">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                     <Trees size={18} className="text-green-600" />
@@ -65,7 +88,7 @@ export function SavedPolygonsList({
                 </h3>
             </div>
 
-            <div className="divide-y divide-gray-100">
+            <div className="min-h-0 flex-1 divide-y divide-gray-100 overflow-y-auto overscroll-contain">
                 {polygons.map((polygon: any) => (
                     <div
                         key={polygon.id}

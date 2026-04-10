@@ -16,11 +16,18 @@ export class UsersService {
     }
 
     async updateMapState(userId: string, input: MapStateInput): Promise<User> {
+        const merged: Record<string, any> = {
+            ...(input.filters ? (input.filters as Record<string, any>) : {}),
+        };
+        if (input.activeLayers !== undefined) {
+            merged.activeLayers = input.activeLayers;
+        }
+
         await this.userRepository.update(userId, {
             lastLng: input.lng,
             lastLat: input.lat,
             lastZoom: input.zoom,
-            lastFilters: input.filters as Record<string, any>,
+            lastFilters: Object.keys(merged).length ? merged : undefined,
         });
 
         const user = await this.findById(userId);

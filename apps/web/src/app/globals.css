@@ -14,6 +14,13 @@
         border-color: #e5e7eb;;
     }
 
+    html,
+    body {
+        height: 100%;
+        max-height: 100%;
+        overflow: hidden;
+    }
+
     body {
         @apply antialiased;
     }
@@ -28,13 +35,156 @@
         @apply text-gray-500 hover:text-gray-700 p-1 right-2 top-2 text-lg;
     }
 
-    .mapboxgl-ctrl-group {
-        @apply rounded-lg shadow-lg border border-gray-200 overflow-hidden;
-    }
+}
 
-    .mapboxgl-ctrl-group button {
-        @apply w-8 h-8 flex items-center justify-center hover:bg-gray-50 transition-colors;
+/*
+ * Mapbox / MapLibre controls on `.forest-map` only.
+ * Vertical stack, bottom-aligned with gear (`bottom-6` = 1.5rem). Fullscreen is added before
+ * Navigation so zoom sits lowest (see mapProviders add order).
+ */
+.forest-map .maplibregl-ctrl-bottom-right,
+.forest-map .mapboxgl-ctrl-bottom-right,
+.forest-map .maplibregl-ctrl-top-right,
+.forest-map .mapboxgl-ctrl-top-right {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    align-items: flex-end !important;
+    justify-content: flex-end !important;
+    gap: 0.5rem !important;
+    bottom: 1.5rem !important;
+    right: 0.75rem !important;
+    left: auto !important;
+    top: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: auto !important;
+    max-height: calc(100vh - 2rem) !important;
+}
+
+@media (min-width: 640px) {
+    .forest-map .maplibregl-ctrl-bottom-right,
+    .forest-map .mapboxgl-ctrl-bottom-right,
+    .forest-map .maplibregl-ctrl-top-right,
+    .forest-map .mapboxgl-ctrl-top-right {
+        right: 1rem !important;
     }
+}
+
+.forest-map .maplibregl-ctrl-bottom-right > .maplibregl-ctrl,
+.forest-map .mapboxgl-ctrl-bottom-right > .mapboxgl-ctrl,
+.forest-map .maplibregl-ctrl-top-right > .maplibregl-ctrl,
+.forest-map .mapboxgl-ctrl-top-right > .mapboxgl-ctrl {
+    float: none !important;
+    clear: none !important;
+    margin: 0 !important;
+}
+
+.forest-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group,
+.forest-map .maplibregl-ctrl-bottom-right .mapboxgl-ctrl-group,
+.forest-map .mapboxgl-ctrl-bottom-right .mapboxgl-ctrl-group,
+.forest-map .maplibregl-ctrl-top-right .maplibregl-ctrl-group,
+.forest-map .maplibregl-ctrl-top-right .mapboxgl-ctrl-group,
+.forest-map .mapboxgl-ctrl-top-right .mapboxgl-ctrl-group {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    gap: 0.5rem !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+}
+
+.forest-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group button,
+.forest-map .mapboxgl-ctrl-bottom-right .mapboxgl-ctrl-group button,
+.forest-map .maplibregl-ctrl-top-right .maplibregl-ctrl-group button,
+.forest-map .mapboxgl-ctrl-top-right .mapboxgl-ctrl-group button {
+    width: 3rem !important;
+    height: 3rem !important;
+    min-width: 3rem !important;
+    min-height: 3rem !important;
+    border-radius: 9999px !important;
+    border: 1px solid #e5e7eb !important;
+    background: #fff !important;
+    box-shadow:
+        0 4px 6px -1px rgb(0 0 0 / 0.08),
+        0 2px 4px -2px rgb(0 0 0 / 0.06) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: background-color 0.15s ease !important;
+}
+
+.forest-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group button:hover,
+.forest-map .mapboxgl-ctrl-bottom-right .mapboxgl-ctrl-group button:hover,
+.forest-map .maplibregl-ctrl-top-right .maplibregl-ctrl-group button:hover,
+.forest-map .mapboxgl-ctrl-top-right .mapboxgl-ctrl-group button:hover {
+    background-color: #f9fafb !important;
+}
+
+.forest-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group button + button,
+.forest-map .mapboxgl-ctrl-bottom-right .mapboxgl-ctrl-group button + button,
+.forest-map .maplibregl-ctrl-top-right .maplibregl-ctrl-group button + button,
+.forest-map .mapboxgl-ctrl-top-right .mapboxgl-ctrl-group button + button {
+    border-top: none !important;
+}
+
+.forest-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group button:first-child,
+.forest-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group button:last-child,
+.forest-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group button:only-child,
+.forest-map .mapboxgl-ctrl-bottom-right .mapboxgl-ctrl-group button:first-child,
+.forest-map .mapboxgl-ctrl-bottom-right .mapboxgl-ctrl-group button:last-child,
+.forest-map .mapboxgl-ctrl-bottom-right .mapboxgl-ctrl-group button:only-child {
+    border-radius: 9999px !important;
+}
+
+.forest-map .maplibregl-ctrl-bottom-right .maplibregl-ctrl-icon,
+.forest-map .mapboxgl-ctrl-bottom-right .mapboxgl-ctrl-icon,
+.forest-map .maplibregl-ctrl-top-right .maplibregl-ctrl-icon,
+.forest-map .mapboxgl-ctrl-top-right .mapboxgl-ctrl-icon {
+    filter: invert(22%) sepia(42%) saturate(1200%) hue-rotate(152deg) brightness(0.35);
+}
+
+/* Attribution + logo: bottom-left (see mapProviders) */
+.forest-map .maplibregl-ctrl-bottom-left,
+.forest-map .mapboxgl-ctrl-bottom-left {
+    bottom: max(0.5rem, env(safe-area-inset-bottom, 0px)) !important;
+    left: 0.5rem !important;
+    right: auto !important;
+    top: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.35rem !important;
+    margin: 0 !important;
+    max-width: min(60vw, 20rem) !important;
+}
+
+.forest-map .maplibregl-ctrl-bottom-left > .maplibregl-ctrl,
+.forest-map .mapboxgl-ctrl-bottom-left > .mapboxgl-ctrl {
+    float: none !important;
+    margin: 0 !important;
+}
+
+.forest-map .maplibregl-ctrl-attrib.maplibregl-compact,
+.forest-map .mapboxgl-ctrl-attrib.mapboxgl-compact {
+    margin: 0 !important;
+    font-size: 10px !important;
+    line-height: 1.35 !important;
+    border-radius: 0.75rem !important;
+}
+
+.forest-map a.maplibregl-ctrl-logo,
+.forest-map a.mapboxgl-ctrl-logo {
+    margin: 0 !important;
+}
+
+/* MapboxDraw with no buttons — hide empty control bar (UI is in gear dock) */
+.forest-map .maplibregl-ctrl-top-left .mapboxgl-ctrl-group:not(:has(> button)),
+.forest-map .mapboxgl-ctrl-top-left .mapboxgl-ctrl-group:not(:has(> button)) {
+    display: none !important;
 }
 
 /* Custom scrollbar */
@@ -65,4 +215,26 @@
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+@keyframes gearOpen {
+    from {
+        opacity: 0;
+        transform: translateX(-6px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+.animate-gear-open {
+    animation: gearOpen 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* react-colorful — layer legend color picker */
+.react-colorful-wheel-wrap .react-colorful {
+    width: 200px;
+    height: 200px;
+    border-radius: 0.75rem;
 }

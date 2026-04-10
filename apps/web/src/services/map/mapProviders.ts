@@ -81,17 +81,19 @@ async function createMapboxRuntime(args: MapInitArgs): Promise<MapRuntime> {
     style: MAPBOX_STYLES[args.styleKey],
     center: args.center,
     zoom: args.zoom,
+    attributionControl: false,
   });
 
-  map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-  map.addControl(new mapboxgl.FullscreenControl(), 'top-right');
+  map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-left');
+  // Fullscreen above navigation so zoom stack sits lowest (aligned with gear, see globals.css).
+  map.addControl(new mapboxgl.FullscreenControl(), 'bottom-right');
+  map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 
   const draw = new MapboxDraw({
     displayControlsDefault: false,
-    controls: { polygon: true, trash: true },
     defaultMode: 'simple_select',
   });
-  map.addControl(draw, 'top-right');
+  map.addControl(draw, 'top-left');
 
   return {
     provider: 'mapbox',
@@ -112,18 +114,19 @@ async function createMapLibreRuntime(args: MapInitArgs): Promise<MapRuntime> {
     style: cartoRasterStyle(args.styleKey),
     center: args.center,
     zoom: args.zoom,
+    attributionControl: false,
   });
 
-  map.addControl(new maplibregl.NavigationControl(), 'top-right');
-  map.addControl(new maplibregl.FullscreenControl(), 'top-right');
+  map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
+  map.addControl(new maplibregl.FullscreenControl(), 'bottom-right');
+  map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 
-  // MapboxDraw is API-compatible with MapLibre in most cases (same style spec + handlers).
+  // MapboxDraw: no built-in buttons — polygon / trash live in MapFloatingControls.
   const draw = new MapboxDraw({
     displayControlsDefault: false,
-    controls: { polygon: true, trash: true },
     defaultMode: 'simple_select',
   });
-  map.addControl(draw, 'top-right');
+  map.addControl(draw, 'top-left');
 
   return {
     provider: 'maplibre',

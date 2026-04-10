@@ -112,16 +112,16 @@ export function FilterPanel({ onRegionSelect }: FilterPanelProps) {
     // @ts-ignore
     // @ts-ignore
     return (
-        <div className="absolute top-4 left-4 z-10 w-80 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="p-4" style={{ background: 'linear-gradient(to right, #0b4a59, #0d5a6b)' }}>
-                <div className="flex items-center gap-2">
-                    <TreePine size={20} className="text-white" />
-                    <h3 className="font-semibold text-lg text-white">Forest Explorer</h3>
+        <div className="relative w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-md">
+            <div className="flex items-center gap-2 border-b border-gray-100 bg-gray-50 px-3 py-2">
+                <TreePine size={18} className="shrink-0 text-[#0b4a59]" />
+                <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-gray-900">Explore area</h3>
+                    <p className="text-xs text-gray-500">Filter by region, department, commune</p>
                 </div>
-                <p className="text-gray-200 text-sm mt-1">Filter by administrative area</p>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="max-h-[38vh] space-y-3 overflow-y-auto overscroll-contain p-3 sm:max-h-[min(38vh,320px)]">
                 {/* Region Select */}
                 <div>
                     <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1.5">

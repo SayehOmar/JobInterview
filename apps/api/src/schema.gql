@@ -55,6 +55,7 @@ input MapFiltersInput {
 }
 
 input MapStateInput {
+  activeLayers: [String!]
   filters: MapFiltersInput
   lat: Float!
   lng: Float!
