@@ -14,6 +14,15 @@ input BoundsInput {
   minLng: Float!
 }
 
+input CreatePolygonFolderInput {
+  name: String!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
 type ForestPlotType {
   codeCommune: String!
   codeDepartement: String!
@@ -63,10 +72,35 @@ input MapStateInput {
 }
 
 type Mutation {
+  createPolygonFolder(input: CreatePolygonFolderInput!): PolygonFolderModel!
+  deletePolygon(polygonId: ID!): Boolean!
+  deletePolygonFolder(folderId: ID!): Boolean!
   login(input: LoginInput!): AuthPayload!
   logout: Boolean!
+  movePolygonToFolder(folderId: ID, polygonId: ID!): UserPolygonModel!
+  reanalyzePolygon(polygonId: ID!): UserPolygonModel!
   register(input: RegisterInput!): AuthPayload!
+  renamePolygonFolder(input: RenamePolygonFolderInput!): PolygonFolderModel!
+  reorderPolygonsInFolder(folderId: ID!, polygonIds: [ID!]!): Boolean!
+  reorderRootLibrary(input: ReorderRootLibraryInput!): Boolean!
+  savePolygon(input: SavePolygonInput!): UserPolygonModel!
   updateMapState(input: MapStateInput!): UserModel!
+  updatePolygon(input: UpdatePolygonInput!): UserPolygonModel!
+}
+
+type PolygonAnalysisResultsModel {
+  coveragePercentage: Float
+  forestTypes: [String!]
+  plotCount: Int
+  speciesDistribution: [SpeciesDistributionModel!]
+  totalForestArea: Float
+}
+
+type PolygonFolderModel {
+  createdAt: DateTime!
+  id: ID!
+  name: String!
+  rootOrder: Float!
 }
 
 type Query {
@@ -75,6 +109,8 @@ type Query {
   forestPlots(filters: ForestPlotsFilterInput): [ForestPlotType!]!
   lieuxDits(communeCode: String!): [String!]!
   me: UserModel!
+  myPolygonFolders: [PolygonFolderModel!]!
+  myPolygons: [UserPolygonModel!]!
   regions: [String!]!
 }
 
@@ -83,6 +119,43 @@ input RegisterInput {
   firstName: String
   lastName: String
   password: String!
+}
+
+input RenamePolygonFolderInput {
+  folderId: String!
+  name: String!
+}
+
+input ReorderRootItemInput {
+  id: String!
+  kind: SavedLibraryRootKind!
+}
+
+input ReorderRootLibraryInput {
+  items: [ReorderRootItemInput!]!
+}
+
+input SavePolygonInput {
+  folderId: String
+  geometry: JSON!
+  locationContext: JSON
+  name: String!
+}
+
+enum SavedLibraryRootKind {
+  FOLDER
+  POLYGON
+}
+
+type SpeciesDistributionModel {
+  areaHectares: Float!
+  percentage: Float!
+  species: String!
+}
+
+input UpdatePolygonInput {
+  name: String!
+  polygonId: String!
 }
 
 type UserModel {
@@ -94,4 +167,18 @@ type UserModel {
   lastLng: Float
   lastName: String
   lastZoom: Float
+}
+
+type UserPolygonModel {
+  analysisResults: PolygonAnalysisResultsModel
+  areaHectares: Float!
+  createdAt: DateTime!
+  folderId: ID
+  folderOrder: Float
+  geometry: GeoJSON!
+  id: ID!
+  locationContext: JSON
+  name: String!
+  rootOrder: Float!
+  status: String!
 }

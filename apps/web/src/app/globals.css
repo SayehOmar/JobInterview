@@ -187,6 +187,12 @@
     display: none !important;
 }
 
+/* Polygon draw mode — crosshair on map canvas (overrides grab/pointer from the map runtime) */
+.forest-map--draw-polygon .mapboxgl-canvas,
+.forest-map--draw-polygon .maplibregl-canvas {
+    cursor: crosshair !important;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
     width: 8px;

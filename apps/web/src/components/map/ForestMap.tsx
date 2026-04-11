@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Draggable from 'react-draggable';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
@@ -10,7 +11,12 @@ import { useAuthStore } from '@/store/authStore';
 import { UPDATE_MAP_STATE } from '@/graphql/auth';
 import { GET_MY_POLYGONS, SAVE_POLYGON_MUTATION } from '@/graphql/polygons';
 import { queryAllLayers } from '@/services/wmsFeatureInfo';
+import {
+    buildLocationContextFromDrawnGeometry,
+    type SavedLocationContext,
+} from '@/services/locationContextSnapshot';
 import { WMS_LAYERS, getWMSTileUrl, WMSLayerConfig } from '@/services/wmsLayers';
+import { mergeLayersWithStoredColors, saveLayerColorOverrides } from '@/services/wmsLayerColorsStorage';
 import { applyRasterTintToMapLayer, getRasterTintPaintProps } from '@/services/wmsRasterTint';
 import { createMapRuntime, MapStyleKey } from '@/services/map/mapProviders';
 
@@ -23,7 +29,7 @@ import { UserMenuDropdown } from './UserMenuDropdown';
 import { FeatureQueryPopup } from './FeatureQueryPopup';
 import { MapFloatingControls } from './MapFloatingControls';
 
-import { Map as MapIcon, Satellite, Mountain, Sun, Moon } from 'lucide-react';
+import { Map as MapIcon, Satellite, Mountain, Sun, Moon, GripVertical } from 'lucide-react';
 
 // Base layer configurations
 const BASE_LAYERS = {
@@ -85,6 +91,7 @@ export function ForestMap() {
 
     const mapContainer = useRef<HTMLDivElement>(null);
     const topRightStackRef = useRef<HTMLDivElement>(null);
+    const leftStackDragRef = useRef<HTMLDivElement>(null);
     const [profileMenuOpen, setProfileMenuOpen] = useState(false);
     const [layersMenuOpen, setLayersMenuOpen] = useState(false);
     const map = useRef<any>(null);
@@ -234,6 +241,26 @@ export function ForestMap() {
         };
     }, [user?.id]);
 
+    // Restore WMS layer colors from localStorage (same persistence idea as view state — survives new tabs).
+    useEffect(() => {
+        setWmsLayers(mergeLayersWithStoredColors(WMS_LAYERS));
+    }, []);
+
+    // Keep raster tint paint in sync with wmsLayers (initial load, hydration, and color edits).
+    useEffect(() => {
+        if (!map.current || !mapLoaded) return;
+        wmsLayers.forEach((layer) => {
+            const mapLayerId = `wms-layer-${layer.id}`;
+            if (!map.current!.getLayer(mapLayerId)) return;
+            applyRasterTintToMapLayer(
+                map.current!,
+                mapLayerId,
+                WMS_LAYERS.find((l) => l.id === layer.id)?.color,
+                layer.color,
+            );
+        });
+    }, [mapLoaded, wmsLayers]);
+
     // Handle base layer change
     const handleBaseLayerChange = (layerKey: keyof typeof BASE_LAYERS) => {
         if (!map.current) return;
@@ -321,15 +348,11 @@ export function ForestMap() {
     };
 
     const handleLayerColorChange = (layerId: string, color: string) => {
-        setWmsLayers((prev) => prev.map((l) => (l.id === layerId ? { ...l, color } : l)));
-        if (map.current?.getLayer(`wms-layer-${layerId}`)) {
-            applyRasterTintToMapLayer(
-                map.current,
-                `wms-layer-${layerId}`,
-                WMS_LAYERS.find((l) => l.id === layerId)?.color,
-                color,
-            );
-        }
+        setWmsLayers((prev) => {
+            const next = prev.map((l) => (l.id === layerId ? { ...l, color } : l));
+            saveLayerColorOverrides(next);
+            return next;
+        });
     };
 
     // Start drawing mode (same MapboxDraw mode as the old polygon control)
@@ -352,13 +375,27 @@ export function ForestMap() {
         if (!drawnGeometry) return;
 
         try {
+            let locationContext: SavedLocationContext | undefined;
+            if (map.current) {
+                try {
+                    const snap = await buildLocationContextFromDrawnGeometry(
+                        drawnGeometry as Record<string, unknown>,
+                        map.current,
+                    );
+                    if (snap) locationContext = snap;
+                } catch (wmsErr) {
+                    console.warn('WMS location snapshot failed (polygon still saves)', wmsErr);
+                }
+            }
+
             const { data } = await savePolygon({
                 variables: {
                     input: {
                         name: name.trim(),
-                        geometry: drawnGeometry
-                    }
-                }
+                        geometry: drawnGeometry,
+                        ...(locationContext ? { locationContext } : {}),
+                    },
+                },
             });
 
             // @ts-ignore
@@ -462,7 +499,7 @@ export function ForestMap() {
             {/* Full-viewport map (no document scroll) */}
             <div
                 ref={mapContainer}
-                className="forest-map absolute inset-0 h-full w-full touch-manipulation"
+                className={`forest-map absolute inset-0 h-full w-full touch-manipulation ${isDrawing ? 'forest-map--draw-polygon' : ''}`}
             />
 
             <div
@@ -503,17 +540,36 @@ export function ForestMap() {
                 onToggleCadastre={() => setShowCadastre(!showCadastre)}
             />
 
-            {/* Left stack: filters + saved polygons (scroll only inside cards) */}
-            <div className="pointer-events-none absolute left-0 top-0 z-20 flex h-dvh w-[min(22rem,calc(100vw-0.75rem))] flex-col gap-2 overflow-hidden pl-2 pt-3 sm:left-3 sm:pl-0 sm:pt-4">
-                <div className="pointer-events-auto flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
-                    <FilterPanel onRegionSelect={handleRegionNavigate} />
-                    <SavedPolygonsList
-                        showEmptyState={hasCompletedPolygonDraw}
-                        onSelectPolygon={(p) => {
-                            setAnalysisResult(p);
-                            setShowResults(true);
-                        }}
-                    />
+            {/* Left stack: filters + saved polygons — draggable; scroll only inside cards */}
+            <div className="pointer-events-none absolute left-0 top-0 z-20 h-dvh w-[min(22rem,calc(100vw-0.75rem))] overflow-hidden pl-2 pt-3 sm:left-3 sm:pl-0 sm:pt-4">
+                <div className="relative h-full w-full">
+                    <Draggable
+                        nodeRef={leftStackDragRef}
+                        handle=".map-left-stack-drag-handle"
+                        bounds="parent"
+                        defaultPosition={{ x: 0, y: 0 }}
+                    >
+                        <div
+                            ref={leftStackDragRef}
+                            className="pointer-events-auto flex min-h-0 min-w-0 max-h-[calc(100dvh-1.25rem)] w-full flex-col gap-2 overflow-hidden"
+                        >
+                            <div
+                                className="map-left-stack-drag-handle flex shrink-0 cursor-grab select-none items-center gap-2 rounded-lg border border-gray-200/90 bg-white/95 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 shadow-sm active:cursor-grabbing"
+                                title="Drag to move this panel on the map"
+                            >
+                                <GripVertical size={14} className="shrink-0 text-gray-400" aria-hidden />
+                                <span className="truncate">Move panel</span>
+                            </div>
+                            <FilterPanel onRegionSelect={handleRegionNavigate} />
+                            <SavedPolygonsList
+                                showEmptyState={hasCompletedPolygonDraw}
+                                onSelectPolygon={(p) => {
+                                    setAnalysisResult(p);
+                                    setShowResults(true);
+                                }}
+                            />
+                        </div>
+                    </Draggable>
                 </div>
             </div>
 
@@ -535,7 +591,9 @@ export function ForestMap() {
             {showResults && analysisResult && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                     <PolygonResultsPanel
+                        key={analysisResult.id}
                         result={analysisResult}
+                        mapRef={map}
                         onClose={() => setShowResults(false)}
                     />
                 </div>

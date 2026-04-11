@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { HexColorPicker } from 'react-colorful';
-import { Layers, Eye, EyeOff } from 'lucide-react';
+import { Layers, Eye, EyeOff, ChevronDown, ChevronRight } from 'lucide-react';
 import { normalizeLayerColorToHex, WMSLayerConfig } from '@/services/wmsLayers';
 import { mapDropdownHeaderClass, mapDropdownPanelClass } from './mapDropdownStyles';
 
@@ -29,6 +29,7 @@ export function LayerControlPanel({
 }: LayerControlPanelProps) {
     const [colorPickerId, setColorPickerId] = useState<string | null>(null);
     const [pickerPos, setPickerPos] = useState<{ left: number; top: number } | null>(null);
+    const [layersListExpanded, setLayersListExpanded] = useState(true);
     const pickerRef = useRef<HTMLDivElement>(null);
 
     const isVisible = (layer: WMSLayerConfig) => {
@@ -39,8 +40,11 @@ export function LayerControlPanel({
         if (!open) {
             setColorPickerId(null);
             setPickerPos(null);
+            setLayersListExpanded(true);
         }
     }, [open]);
+
+    const visibleAtZoomCount = layers.filter(isVisible).length;
 
     useEffect(() => {
         if (!colorPickerId) return;
@@ -81,11 +85,36 @@ export function LayerControlPanel({
                 <div className={`${mapDropdownPanelClass} mt-2 w-full overflow-visible`}>
                     <div className={mapDropdownHeaderClass}>
                         <Layers size={18} className="shrink-0 text-[#0b4a59]" />
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                             <h3 className="text-sm font-semibold text-gray-900">Map layers</h3>
                             <p className="text-xs text-gray-500">Visibility and legend colors</p>
                         </div>
+                        <button
+                            type="button"
+                            aria-expanded={layersListExpanded}
+                            aria-label={layersListExpanded ? 'Collapse layer list' : 'Expand layer list'}
+                            onClick={() => setLayersListExpanded((v) => !v)}
+                            className="shrink-0 rounded-md p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
+                        >
+                            {layersListExpanded ? (
+                                <ChevronDown size={18} strokeWidth={2} />
+                            ) : (
+                                <ChevronRight size={18} strokeWidth={2} />
+                            )}
+                        </button>
                     </div>
+                    {!layersListExpanded && (
+                        <button
+                            type="button"
+                            onClick={() => setLayersListExpanded(true)}
+                            className="w-full border-b border-gray-200 bg-gray-50 px-3 py-2 text-left text-xs text-gray-600 transition hover:bg-gray-100"
+                        >
+                            {layers.length} layer{layers.length === 1 ? '' : 's'} · {visibleAtZoomCount} visible at this
+                            zoom — tap to expand
+                        </button>
+                    )}
+                    {layersListExpanded && (
+                        <>
                     <div className="border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-500">
                         Zoom: {currentZoom.toFixed(1)}
                     </div>
@@ -142,6 +171,8 @@ export function LayerControlPanel({
                             );
                         })}
                     </div>
+                        </>
+                    )}
                 </div>
             )}
 

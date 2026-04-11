@@ -9,7 +9,8 @@ import { join } from 'path';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { GeospatialModule } from './geospatial/geospatial.module';
-import { User, ForestPlot } from '@forest/database';
+import { PolygonsModule } from './polygons/polygons.module';
+import { User, ForestPlot, UserPolygon, PolygonFolder } from '@forest/database';
 import { Request, Response } from 'express';
 @Module({
   imports: [
@@ -27,7 +28,7 @@ import { Request, Response } from 'express';
           username: configService.get<string>('DATABASE_USERNAME') ?? 'postgres',
           password: configService.get<string>('DATABASE_PASSWORD') ?? '',
           database: configService.get<string>('DATABASE_NAME') ?? 'forest_bd_viewer',
-          entities: [User, ForestPlot],
+          entities: [User, ForestPlot, UserPolygon, PolygonFolder],
           synchronize: nodeEnv === 'development', // Auto-create tables in dev
           logging: nodeEnv === 'development',
         };
@@ -44,6 +45,7 @@ import { Request, Response } from 'express';
     AuthModule,
     UsersModule,
     GeospatialModule,
+    PolygonsModule,
   ],
 })
 export class AppModule {}
