@@ -1,6 +1,11 @@
 import type { Map } from 'mapbox-gl';
 import { queryAllLayers, type FeatureInfoResponse } from '@/services/wmsFeatureInfo';
 import { getPolygonGeometryCentroid } from '@/services/geometryCentroid';
+import {
+    getForestGeometryFromFeatureInfo,
+    intersectionAreaHectares,
+} from '@/services/forestPolygonIntersection';
+import { sumForestOverlapFromWfs } from '@/services/forestWfsOverlap';
 
 function propsFromResponse(f: FeatureInfoResponse | null): Record<string, unknown> | null {
     const p = f?.features?.[0]?.properties;
@@ -16,6 +21,8 @@ export type SavedLocationContext = {
     region: Record<string, unknown> | null;
     department: Record<string, unknown> | null;
     commune: Record<string, unknown> | null;
+    /** Overlap (ha) between drawn polygon and BD Forêt parcel geometry from WMS, when computable */
+    forestIntersectionHectares?: number | null;
 };
 
 export async function buildLocationContextFromDrawnGeometry(
@@ -26,6 +33,23 @@ export async function buildLocationContextFromDrawnGeometry(
     if (!ll) return null;
     const [lng, lat] = ll;
     const data = await queryAllLayers(lng, lat, map);
+    const userGeom = geometry as unknown as GeoJSON.Geometry;
+    let forestIntersectionHectares: number | null = null;
+    if (userGeom.type === 'Polygon' || userGeom.type === 'MultiPolygon') {
+        /** WFS returns full polygons in 4326; GFI JSON often omits geometry. */
+        const fromWfs = await sumForestOverlapFromWfs(userGeom);
+        const forestGeom = getForestGeometryFromFeatureInfo(data.forest);
+
+        if (fromWfs != null && fromWfs > 0) {
+            forestIntersectionHectares = fromWfs;
+        } else if (fromWfs != null && fromWfs === 0) {
+            forestIntersectionHectares = forestGeom
+                ? intersectionAreaHectares(userGeom, forestGeom)
+                : 0;
+        } else if (forestGeom) {
+            forestIntersectionHectares = intersectionAreaHectares(userGeom, forestGeom);
+        }
+    }
     return {
         sampleLng: lng,
         sampleLat: lat,
@@ -33,5 +57,6 @@ export async function buildLocationContextFromDrawnGeometry(
         region: propsFromResponse(data.region),
         department: propsFromResponse(data.department),
         commune: propsFromResponse(data.commune),
+        forestIntersectionHectares,
     };
 }

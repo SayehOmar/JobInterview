@@ -43,6 +43,8 @@ export function buildEffectiveSpeciesRows(
     forest: Record<string, unknown> | null | undefined,
     polygonAreaHa: number,
     parcelSurfaceHa: number | null,
+    /** Prefer overlap area with BD Forêt parcel (ha) when available */
+    forestIntersectionHectares: number | null | undefined,
 ): SpeciesRow[] {
     const fromAnalysis = [...(analysisSpecies || [])].filter((r) => r.species);
     if (fromAnalysis.length > 0) return fromAnalysis;
@@ -57,11 +59,16 @@ export function buildEffectiveSpeciesRows(
     if (raw == null || raw === '') return [];
 
     const essenceStr = typeof raw === 'string' ? raw : String(raw);
+    const forestCoverHa =
+        forestIntersectionHectares != null && Number.isFinite(forestIntersectionHectares) && forestIntersectionHectares >= 0
+            ? Math.min(forestIntersectionHectares, polygonAreaHa)
+            : null;
+
     if (!essenceStr.trim() || /^nc$/i.test(essenceStr.trim())) {
         return [
             {
                 species: 'Not classified (NC)',
-                areaHectares: Math.min(polygonAreaHa, parcelSurfaceHa ?? polygonAreaHa),
+                areaHectares: forestCoverHa ?? Math.min(polygonAreaHa, parcelSurfaceHa ?? polygonAreaHa),
                 percentage: 100,
             },
         ];
@@ -70,9 +77,10 @@ export function buildEffectiveSpeciesRows(
     const parts = splitEssence(essenceStr);
     const names = parts.length > 0 ? parts : [essenceStr.trim()];
     const baseHa =
-        parcelSurfaceHa != null && parcelSurfaceHa > 0
+        forestCoverHa ??
+        (parcelSurfaceHa != null && parcelSurfaceHa > 0
             ? Math.min(polygonAreaHa, parcelSurfaceHa)
-            : polygonAreaHa;
+            : polygonAreaHa);
     const perHa = baseHa / names.length;
     return names.map((species) => ({
         species,
@@ -90,10 +98,26 @@ export function buildEffectiveForestCover(
     forest: Record<string, unknown> | null | undefined,
     polygonAreaHa: number,
     parcelSurfaceHa: number | null,
+    /** True overlap (ha) between user polygon and BD Forêt parcel geometry */
+    forestIntersectionHectares: number | null | undefined,
 ): { totalForestHa: number; coveragePct: number; plotCount: number } {
     const aForest = analysis?.totalForestArea;
     const aCov = analysis?.coveragePercentage;
     const aPlots = analysis?.plotCount;
+
+    if (
+        forestIntersectionHectares != null &&
+        Number.isFinite(forestIntersectionHectares) &&
+        forestIntersectionHectares >= 0 &&
+        polygonAreaHa > 0
+    ) {
+        const coverHa = Math.min(forestIntersectionHectares, polygonAreaHa);
+        return {
+            totalForestHa: coverHa,
+            coveragePct: Math.min(100, (coverHa / polygonAreaHa) * 100),
+            plotCount: forest?.ID || forest?.id ? 1 : 0,
+        };
+    }
 
     if (aForest != null && Number.isFinite(aForest) && aForest > 0) {
         return {
@@ -141,6 +165,8 @@ export function mergeLocationContext(
             region: fresh.region ?? saved.region,
             department: fresh.department ?? saved.department,
             commune: fresh.commune ?? saved.commune,
+            forestIntersectionHectares:
+                fresh.forestIntersectionHectares ?? saved.forestIntersectionHectares,
         };
     }
     return fresh ?? saved ?? null;
