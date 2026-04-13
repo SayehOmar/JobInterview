@@ -1,3 +1,6 @@
+import type { MapFilters } from '@/store/mapStore';
+import { buildWmsCqlForLayer } from '@/services/wmsLayerCql';
+
 const GEOSERVER_URL = '/geoserver';
 const WORKSPACE = 'prod';
 
@@ -28,7 +31,8 @@ export const getFeatureInfo = async (
     layerName: string,
     lng: number,
     lat: number,
-    map: mapboxgl.Map
+    map: mapboxgl.Map,
+    cqlFilter?: string,
 ): Promise<FeatureInfoResponse | null> => {
     const point = map.project([lng, lat]);
     const bounds = map.getBounds();
@@ -59,7 +63,10 @@ export const getFeatureInfo = async (
         feature_count: '1',
     });
 
-    const url = `${GEOSERVER_URL}/${WORKSPACE}/wms?${params.toString()}`;
+    let url = `${GEOSERVER_URL}/${WORKSPACE}/wms?${params.toString()}`;
+    if (cqlFilter) {
+        url += `&CQL_FILTER=${encodeURIComponent(cqlFilter)}`;
+    }
 
     try {
         const response = await fetch(url);
@@ -71,22 +78,40 @@ export const getFeatureInfo = async (
     }
 };
 
-// Query all layers in hierarchy: Region → Department → Commune → Forest
+/**
+ * Feature info for map click. Skips coarser admin layers when finer filters are set
+ * to reduce HTTP calls. Uses the same CQL as map tiles when possible.
+ */
 export const queryAllLayers = async (
     lng: number,
     lat: number,
-    map: mapboxgl.Map
+    map: mapboxgl.Map,
+    filters: MapFilters = {},
 ): Promise<{
     region: FeatureInfoResponse | null;
     department: FeatureInfoResponse | null;
     commune: FeatureInfoResponse | null;
     forest: FeatureInfoResponse | null;
 }> => {
+    const skipRegion = Boolean(
+        filters.departementCode || filters.communeCode,
+    );
+    const skipDepartment = Boolean(filters.communeCode);
+
+    const cqlRegion = buildWmsCqlForLayer('region', filters);
+    const cqlDept = buildWmsCqlForLayer('department', filters);
+    const cqlCommune = buildWmsCqlForLayer('commune', filters);
+    const cqlForest = buildWmsCqlForLayer('forest', filters);
+
     const [region, department, commune, forest] = await Promise.all([
-        getFeatureInfo('region', lng, lat, map),
-        getFeatureInfo('department', lng, lat, map),
-        getFeatureInfo('cummune', lng, lat, map),
-        getFeatureInfo('forest', lng, lat, map),
+        skipRegion
+            ? Promise.resolve(null)
+            : getFeatureInfo('region', lng, lat, map, cqlRegion),
+        skipDepartment
+            ? Promise.resolve(null)
+            : getFeatureInfo('department', lng, lat, map, cqlDept),
+        getFeatureInfo('cummune', lng, lat, map, cqlCommune),
+        getFeatureInfo('forest', lng, lat, map, cqlForest),
     ]);
 
     return { region, department, commune, forest };

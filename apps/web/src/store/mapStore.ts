@@ -1,10 +1,9 @@
 import { create } from 'zustand';
 
-interface MapFilters {
+export interface MapFilters {
     regionCode?: string;
     departementCode?: string;
     communeCode?: string;
-    lieuDit?: string;
 }
 
 interface MapState {

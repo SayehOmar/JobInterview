@@ -53,6 +53,9 @@ import {
   savedPolyRoundBtnMuted,
   savedPolyRoundBtnTeal,
 } from "./savedPolygonsUi";
+import { formatArea } from "@/services/areaFormat";
+import { useAreaUnitStore } from "@/store/areaUnitStore";
+import { getDisplayForestCoverForPolygon } from "@/services/polygonAnalysisDisplay";
 
 type PolygonRow = {
   id: string;
@@ -164,6 +167,11 @@ function PolygonBody({
   detailsExpanded: boolean;
   onToggleDetails: () => void;
 }) {
+  const areaUnit = useAreaUnitStore((s) => s.areaUnit);
+  const forestMetrics = getDisplayForestCoverForPolygon(polygon);
+  const showForestSummary =
+    polygon.locationContext != null || polygon.analysisResults != null;
+
   return (
     <>
       <div
@@ -217,7 +225,7 @@ function PolygonBody({
             {detailsExpanded && (
               <>
                 <div className="flex items-center gap-3 mt-1 ml-6 text-xs text-gray-500">
-                  <span>{polygon.areaHectares.toFixed(2)} ha</span>
+                  <span>{formatArea(polygon.areaHectares, areaUnit)}</span>
                   <span className="flex items-center gap-1">
                     {polygon.status === "completed" ? (
                       <Trees size={12} className="text-green-600" />
@@ -229,10 +237,15 @@ function PolygonBody({
                     {polygon.status}
                   </span>
                 </div>
-                {polygon.analysisResults?.totalForestArea != null && (
-                  <p className="text-xs text-green-600 mt-1 ml-6">
-                    Forest: {polygon.analysisResults.totalForestArea.toFixed(1)}{" "}
-                    ha
+                {showForestSummary && (
+                  <p className="text-xs text-emerald-700 mt-1 ml-6">
+                    Forest: {formatArea(forestMetrics.totalForestHa, areaUnit)}
+                    {forestMetrics.coveragePct > 0 && (
+                      <span className="text-emerald-600/85">
+                        {" "}
+                        ({forestMetrics.coveragePct.toFixed(0)}% of polygon)
+                      </span>
+                    )}
                   </p>
                 )}
               </>
@@ -416,7 +429,7 @@ function RootCanvasDrop({
   return (
     <div
       ref={setNodeRef}
-      className={`min-h-0 flex-1 overflow-y-auto overscroll-contain text-sm rounded-md transition-all ${
+      className={`max-h-[min(55vh,520px)] overflow-y-auto overscroll-contain text-sm rounded-md transition-all ${
         showLiftOut
           ? "bg-emerald-50/90 ring-2 ring-emerald-500/80 shadow-inner"
           : isOver
@@ -591,6 +604,7 @@ export function SavedPolygonsList({
   selectedPolygonId,
   showEmptyState = false,
 }: SavedPolygonsListProps) {
+  const [panelExpanded, setPanelExpanded] = useState(true);
   const {
     data: polyData,
     loading: polyLoading,
@@ -884,8 +898,8 @@ export function SavedPolygonsList({
 
   if (polygons.length === 0) {
     return (
-      <div className="relative flex min-h-[168px] flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-md">
-        <div className="flex flex-1 flex-col items-center justify-center px-3 py-6 text-center text-gray-500">
+      <div className="relative flex min-h-[168px] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-md">
+        <div className="flex flex-col items-center justify-center px-3 py-6 text-center text-gray-500">
           <MapPin size={28} className="mx-auto mb-2 text-gray-300" />
           <p className="text-sm">No saved polygons yet.</p>
           <p className="text-xs text-gray-400 mt-1">
@@ -920,22 +934,48 @@ export function SavedPolygonsList({
         setDndOverId(null);
       }}
     >
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-md">
+      <div className="relative flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-md">
         <div className="p-3 bg-gray-50 border-b border-gray-200 sticky top-0 z-1 flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <h3 className="font-semibold text-gray-900 flex items-center gap-2 min-w-0">
               <Trees size={18} className="text-green-600 shrink-0" />
               <span className="truncate">Saved ({polygons.length})</span>
             </h3>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-expanded={panelExpanded}
+                aria-label={panelExpanded ? "Collapse saved polygons" : "Expand saved polygons"}
+                onClick={() => setPanelExpanded((v) => !v)}
+                className="shrink-0 rounded-md p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
+              >
+                {panelExpanded ? (
+                  <ChevronDown size={18} strokeWidth={2} />
+                ) : (
+                  <ChevronRight size={18} strokeWidth={2} />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowNewFolder((v) => !v)}
+                className={savedPolyPillBtn}
+                disabled={!panelExpanded}
+                aria-disabled={!panelExpanded}
+              >
+                <FolderPlus size={14} strokeWidth={2} />
+                <span className="hidden sm:inline">Folder</span>
+              </button>
+            </div>
+          </div>
+          {!panelExpanded && (
             <button
               type="button"
-              onClick={() => setShowNewFolder((v) => !v)}
-              className={savedPolyPillBtn}
+              onClick={() => setPanelExpanded(true)}
+              className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-left text-xs text-gray-600 transition hover:bg-gray-100"
             >
-              <FolderPlus size={14} strokeWidth={2} />
-              <span className="hidden sm:inline">Folder</span>
+              {polygons.length} polygon{polygons.length === 1 ? "" : "s"} — tap to expand
             </button>
-          </div>
+          )}
           {showNewFolder && (
             <form onSubmit={handleCreateFolder} className="flex gap-2">
               <input
@@ -952,38 +992,41 @@ export function SavedPolygonsList({
               </button>
             </form>
           )}
-          <p className="text-[10px] text-gray-500">
-            Reorder folders and top-level layers by dragging the grip. Drag a
-            top-level layer onto an open folder to nest it. Drag a nested layer
-            onto the green highlighted list (or any top-level row) to move it
-            back out.
-          </p>
+          {panelExpanded && (
+            <p className="text-[10px] text-gray-500">
+              Reorder folders and top-level layers by dragging the grip. Drag a
+              top-level layer onto an open folder to nest it. Drag a nested layer
+              onto the green highlighted list (or any top-level row) to move it
+              back out.
+            </p>
+          )}
         </div>
 
-        <RootCanvasDrop
-          draggingNestedPolygon={draggingNestedPolygon}
-          dropTargetId={dndOverId}
-        >
-          <SortableContext
-            items={rootIds}
-            strategy={verticalListSortingStrategy}
+        {panelExpanded && (
+          <RootCanvasDrop
+            draggingNestedPolygon={draggingNestedPolygon}
+            dropTargetId={dndOverId}
           >
-            {rootEntries.map((entry) =>
-              entry.k === "f" ? (
-                <SortableFolderBlock
-                  key={entry.f.id}
-                  folder={entry.f}
-                  editingFolderId={editingFolderId}
-                  folderRenameDraft={folderRenameDraft}
-                  setFolderRenameDraft={setFolderRenameDraft}
-                  commitFolderRename={commitFolderRename}
-                  cancelFolderRename={cancelFolderRename}
-                  startFolderRename={startFolderRename}
-                  expanded={isFolderExpanded(entry.f.id)}
-                  toggleFolder={toggleFolder}
-                  list={byFolder.get(entry.f.id) ?? []}
-                  folderInputRef={folderInputRef}
-                  onDeleteFolder={handleDeleteFolder}
+            <SortableContext
+              items={rootIds}
+              strategy={verticalListSortingStrategy}
+            >
+              {rootEntries.map((entry) =>
+                entry.k === "f" ? (
+                  <SortableFolderBlock
+                    key={entry.f.id}
+                    folder={entry.f}
+                    editingFolderId={editingFolderId}
+                    folderRenameDraft={folderRenameDraft}
+                    setFolderRenameDraft={setFolderRenameDraft}
+                    commitFolderRename={commitFolderRename}
+                    cancelFolderRename={cancelFolderRename}
+                    startFolderRename={startFolderRename}
+                    expanded={isFolderExpanded(entry.f.id)}
+                    toggleFolder={toggleFolder}
+                    list={byFolder.get(entry.f.id) ?? []}
+                    folderInputRef={folderInputRef}
+                    onDeleteFolder={handleDeleteFolder}
                   draggingRootPolygon={draggingRootPolygon}
                   childrenPolygons={(byFolder.get(entry.f.id) ?? []).map(
                     (polygon) => (
@@ -1043,7 +1086,8 @@ export function SavedPolygonsList({
               ),
             )}
           </SortableContext>
-        </RootCanvasDrop>
+          </RootCanvasDrop>
+        )}
       </div>
 
       <DragOverlay dropAnimation={null}>

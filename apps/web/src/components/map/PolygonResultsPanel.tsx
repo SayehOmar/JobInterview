@@ -1,7 +1,12 @@
 // components/PolygonResultsPanel.tsx
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useState,
+  type HTMLAttributes,
+  type RefObject,
+} from "react";
 import type { Map } from "mapbox-gl";
 import {
   X,
@@ -15,6 +20,7 @@ import {
   Home,
   FileType,
   Loader2,
+  Minimize2,
 } from "lucide-react";
 import type { SavedLocationContext } from "@/services/locationContextSnapshot";
 import { buildLocationContextFromDrawnGeometry } from "@/services/locationContextSnapshot";
@@ -24,6 +30,8 @@ import {
   mergeLocationContext,
   parseForestSurfaceHectares,
 } from "@/services/polygonAnalysisDisplay";
+import { formatArea } from "@/services/areaFormat";
+import { useAreaUnitStore } from "@/store/areaUnitStore";
 
 interface SpeciesDistribution {
   species: string;
@@ -53,8 +61,14 @@ interface PolygonResult {
 interface PolygonResultsPanelProps {
   result: PolygonResult;
   onClose: () => void;
+  /** Minimize to top dock (Windows-style). */
+  onMinimize?: () => void;
   /** Refetch BD Forêt + admin layers at polygon centroid when opening (same as save snapshot). */
   mapRef?: RefObject<Map | null>;
+  /** Extra classes on the outer card (e.g. width when docked). */
+  rootClassName?: string;
+  /** Attach to the teal header row to drag a floating panel (parent applies transform). */
+  headerDragProps?: HTMLAttributes<HTMLDivElement>;
 }
 
 function formatKvLabel(key: string) {
@@ -137,9 +151,13 @@ function AdminBlock({
 export function PolygonResultsPanel({
   result,
   onClose,
+  onMinimize,
   mapRef,
+  rootClassName = "",
+  headerDragProps,
 }: PolygonResultsPanelProps) {
   const { name, areaHectares, analysisResults, status, geometry } = result;
+  const areaUnit = useAreaUnitStore((s) => s.areaUnit);
   const [resolvedLc, setResolvedLc] = useState<SavedLocationContext | null>(
     () => (result.locationContext as SavedLocationContext | undefined) ?? null,
   );
@@ -193,7 +211,12 @@ export function PolygonResultsPanel({
     | undefined;
   const forestLayer = forestProps?.layer as string | undefined;
   const hasForestSnapshot =
-    forestProps && (forestId || forestType || forestSpecies || forestCode);
+    forestProps &&
+    (forestId ||
+      forestType ||
+      forestSpecies ||
+      forestCode ||
+      forestCategory);
 
   const parcelSurfaceHa = parseForestSurfaceHectares(forestProps);
   const forestIntersectionHectares =
@@ -234,10 +257,20 @@ export function PolygonResultsPanel({
 
   const hasData = sortedSpecies.length > 0;
 
+  const {
+    className: headerDragClassName,
+    ...headerDragRest
+  } = headerDragProps ?? {};
+
   return (
-    <div className="bg-white rounded-xl shadow-2xl w-[min(96vw,56rem)] max-w-[min(96vw,56rem)] max-h-[85vh] min-w-0 flex flex-col overflow-x-hidden">
+    <div
+      className={`bg-white rounded-xl shadow-2xl w-full min-w-0 max-h-[85vh] flex flex-col overflow-x-hidden ${rootClassName}`}
+    >
       {/* Header */}
-      <div className="p-4 bg-[#0b4a59] text-white flex items-start justify-between gap-3 shrink-0 rounded-t-xl min-w-0">
+      <div
+        className={`p-4 bg-[#0b4a59] text-white flex items-start justify-between gap-3 shrink-0 rounded-t-xl min-w-0 ${headerDragClassName ?? ""}`}
+        {...headerDragRest}
+      >
         <div className="flex items-start gap-3 min-w-0 flex-1">
           <div className="p-2 bg-white/10 rounded-lg shrink-0">
             <PieChart size={20} />
@@ -258,13 +291,30 @@ export function PolygonResultsPanel({
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-2 hover:bg-white/20 rounded-lg transition-colors shrink-0"
-        >
-          <X size={20} />
-        </button>
+        <div className="flex shrink-0 items-start gap-0.5">
+          {onMinimize && (
+            <button
+              type="button"
+              title="Minimize"
+              aria-label="Minimize analysis"
+              onClick={onMinimize}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="rounded-lg p-2 transition-colors hover:bg-white/20"
+            >
+              <Minimize2 size={20} strokeWidth={2} />
+            </button>
+          )}
+          <button
+            type="button"
+            title="Close"
+            aria-label="Close analysis"
+            onClick={onClose}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="rounded-lg p-2 transition-colors hover:bg-white/20"
+          >
+            <X size={20} />
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -279,8 +329,7 @@ export function PolygonResultsPanel({
               </span>
             </div>
             <p className="text-2xl font-bold text-gray-900">
-              {areaHectares.toFixed(2)}
-              <span className="text-sm font-normal text-gray-600 ml-1">ha</span>
+              {formatArea(areaHectares, areaUnit)}
             </p>
           </div>
 
@@ -292,8 +341,7 @@ export function PolygonResultsPanel({
               </span>
             </div>
             <p className="text-2xl font-bold text-gray-900">
-              {totalForestArea.toFixed(2)}
-              <span className="text-sm font-normal text-gray-600 ml-1">ha</span>
+              {formatArea(totalForestArea, areaUnit)}
             </p>
             <p className="text-xs text-emerald-600 font-medium mt-1">
               {coveragePercentage.toFixed(1)}% of polygon
@@ -305,7 +353,7 @@ export function PolygonResultsPanel({
             )}
             {parcelSurfaceHa != null && forestIntersectionHectares == null && (
               <p className="text-[10px] text-emerald-700/80 mt-1">
-                BD parcel surface ~{parcelSurfaceHa.toFixed(2)} ha
+                BD parcel surface ~{formatArea(parcelSurfaceHa, areaUnit)}
               </p>
             )}
           </div>
@@ -466,11 +514,18 @@ export function PolygonResultsPanel({
 
         {/* Tree Species Distribution */}
         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart3 size={20} className="text-[#0b4a59]" />
-            <h4 className="font-semibold text-gray-900">
-              Tree Species Distribution
-            </h4>
+          <div className="mb-4">
+            <div className="flex items-center gap-2">
+              <BarChart3 size={20} className="text-[#0b4a59]" />
+              <h4 className="font-semibold text-gray-900">
+                Tree species & forest type
+              </h4>
+            </div>
+            <p className="mt-1 text-xs text-gray-500 pl-7">
+              Rows from BD Forêt <span className="font-medium">essence</span> when
+              present, otherwise <span className="font-medium">forest type (TFV)</span>.
+              Areas follow your overlap with the parcel (or saved analysis).
+            </p>
           </div>
 
           {!hasData ? (
@@ -510,10 +565,7 @@ export function PolygonResultsPanel({
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-bold text-emerald-600">
-                          {species.areaHectares.toFixed(2)}
-                          <span className="text-sm font-normal text-gray-500 ml-1">
-                            ha
-                          </span>
+                          {formatArea(species.areaHectares, areaUnit)}
                         </p>
                       </div>
                     </div>
@@ -553,7 +605,10 @@ export function PolygonResultsPanel({
               <div className="flex justify-between">
                 <span className="text-gray-600">Non-Forest Area:</span>
                 <span className="font-semibold text-gray-700">
-                  {Math.max(0, areaHectares - totalForestArea).toFixed(2)} ha
+                  {formatArea(
+                    Math.max(0, areaHectares - totalForestArea),
+                    areaUnit,
+                  )}
                 </span>
               </div>
               <div className="flex justify-between">

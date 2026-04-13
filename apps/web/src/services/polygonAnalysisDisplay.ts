@@ -2,6 +2,45 @@ import type { SavedLocationContext } from '@/services/locationContextSnapshot';
 
 export type SpeciesRow = { species: string; areaHectares: number; percentage: number };
 
+/** Forest cover / coverage for list + panels — prefers WMS snapshot over stale analysis totals. */
+export function getDisplayForestCoverForPolygon(p: {
+    areaHectares: number;
+    analysisResults?: {
+        totalForestArea?: number | null;
+        coveragePercentage?: number | null;
+        plotCount?: number | null;
+    } | null;
+    locationContext?: Record<string, unknown> | null;
+}): { totalForestHa: number; coveragePct: number; plotCount: number } {
+    const lc = p.locationContext as SavedLocationContext | undefined;
+    const forest = (lc?.forest ?? null) as Record<string, unknown> | null;
+    const parcelHa = parseForestSurfaceHectares(forest);
+    return buildEffectiveForestCover(
+        p.analysisResults ?? null,
+        forest,
+        p.areaHectares,
+        parcelHa,
+        lc?.forestIntersectionHectares,
+    );
+}
+
+/**
+ * Hectares basis for species rows: overlap when known (including 0), else parcel cap, else polygon.
+ */
+function resolveBaseHaForSpecies(
+    polygonAreaHa: number,
+    parcelSurfaceHa: number | null,
+    forestIntersectionHectares: number | null | undefined,
+): number {
+    if (forestIntersectionHectares != null && Number.isFinite(forestIntersectionHectares)) {
+        return Math.min(forestIntersectionHectares, polygonAreaHa);
+    }
+    if (parcelSurfaceHa != null && parcelSurfaceHa > 0) {
+        return Math.min(polygonAreaHa, parcelSurfaceHa);
+    }
+    return polygonAreaHa;
+}
+
 /** Try common BD Forêt / GeoServer attribute names for parcel surface (hectares). */
 export function parseForestSurfaceHectares(forest: Record<string, unknown> | null | undefined): number | null {
     if (!forest) return null;
@@ -49,44 +88,54 @@ export function buildEffectiveSpeciesRows(
     const fromAnalysis = [...(analysisSpecies || [])].filter((r) => r.species);
     if (fromAnalysis.length > 0) return fromAnalysis;
 
-    const raw =
+    const baseHa = resolveBaseHaForSpecies(
+        polygonAreaHa,
+        parcelSurfaceHa,
+        forestIntersectionHectares,
+    );
+
+    const essenceRaw =
         forest?.ESSENCE ??
         forest?.essence ??
         forest?.essences ??
         forest?.Essence ??
         forest?.ESPECES ??
+        forest?.ESPECE ??
         null;
-    if (raw == null || raw === '') return [];
 
-    const essenceStr = typeof raw === 'string' ? raw : String(raw);
-    const forestCoverHa =
-        forestIntersectionHectares != null && Number.isFinite(forestIntersectionHectares) && forestIntersectionHectares >= 0
-            ? Math.min(forestIntersectionHectares, polygonAreaHa)
-            : null;
+    if (essenceRaw != null && String(essenceRaw).trim() !== '') {
+        const essenceStr = typeof essenceRaw === 'string' ? essenceRaw : String(essenceRaw);
+        if (!essenceStr.trim() || /^nc$/i.test(essenceStr.trim())) {
+            return [
+                {
+                    species: 'Not classified (NC)',
+                    areaHectares: baseHa,
+                    percentage: 100,
+                },
+            ];
+        }
 
-    if (!essenceStr.trim() || /^nc$/i.test(essenceStr.trim())) {
-        return [
-            {
-                species: 'Not classified (NC)',
-                areaHectares: forestCoverHa ?? Math.min(polygonAreaHa, parcelSurfaceHa ?? polygonAreaHa),
-                percentage: 100,
-            },
-        ];
+        const parts = splitEssence(essenceStr);
+        const names = parts.length > 0 ? parts : [essenceStr.trim()];
+        const perHa = baseHa / names.length;
+        return names.map((species) => ({
+            species,
+            areaHectares: perHa,
+            percentage: 100 / names.length,
+        }));
     }
 
-    const parts = splitEssence(essenceStr);
-    const names = parts.length > 0 ? parts : [essenceStr.trim()];
-    const baseHa =
-        forestCoverHa ??
-        (parcelSurfaceHa != null && parcelSurfaceHa > 0
-            ? Math.min(polygonAreaHa, parcelSurfaceHa)
-            : polygonAreaHa);
-    const perHa = baseHa / names.length;
-    return names.map((species) => ({
-        species,
-        areaHectares: perHa,
-        percentage: 100 / names.length,
-    }));
+    const tfv = String(forest?.TFV ?? forest?.tfv ?? '').trim();
+    if (tfv) {
+        return [{ species: tfv, areaHectares: baseHa, percentage: 100 }];
+    }
+
+    const cat = String(forest?.TFV_G11 ?? forest?.tfv_g11 ?? '').trim();
+    if (cat) {
+        return [{ species: cat, areaHectares: baseHa, percentage: 100 }];
+    }
+
+    return [];
 }
 
 export function buildEffectiveForestCover(

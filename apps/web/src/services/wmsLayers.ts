@@ -67,7 +67,7 @@ export const WMS_LAYERS: WMSLayerConfig[] = [
         name: 'Commune',
         layerName: 'cummune', // Note: typo in your URL
         minZoom: 10,
-        maxZoom: 13,
+        maxZoom: 22,
         opacity: 0.5,
         visible: true,
         color: '#32CD32',
@@ -101,8 +101,12 @@ export const buildWMSUrl = (layerName: string): string => {
     return `${GEOSERVER_URL}/${WORKSPACE}/wms`;
 };
 
-export const getWMSTileUrl = (layerName: string): string => {
-    return `${GEOSERVER_URL}/${WORKSPACE}/wms?` +
+export const getWMSTileUrl = (
+    layerName: string,
+    cqlFilter?: string,
+): string => {
+    let url =
+        `${GEOSERVER_URL}/${WORKSPACE}/wms?` +
         `service=WMS&` +
         `version=1.1.0&` +
         `request=GetMap&` +
@@ -114,4 +118,8 @@ export const getWMSTileUrl = (layerName: string): string => {
         `bbox={bbox-epsg-3857}&` +
         `width=256&` +
         `height=256`;
+    if (cqlFilter) {
+        url += `&CQL_FILTER=${encodeURIComponent(cqlFilter)}`;
+    }
+    return url;
 };

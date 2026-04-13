@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
@@ -19,6 +19,7 @@ import {
   getWMSTileUrl,
   WMSLayerConfig,
 } from "@/services/wmsLayers";
+import { buildWmsCqlForLayer } from "@/services/wmsLayerCql";
 import {
   mergeLayersWithStoredColors,
   saveLayerColorOverrides,
@@ -28,6 +29,13 @@ import {
   getRasterTintPaintProps,
 } from "@/services/wmsRasterTint";
 import { createMapRuntime, MapStyleKey } from "@/services/map/mapProviders";
+import { flyMapToPolygonGeometry } from "@/services/mapFlyToPolygon";
+import { useAnalysisPanelDrag } from "@/components/map/useAnalysisPanelDrag";
+import { AnalysisDockBar } from "@/components/map/AnalysisDockBar";
+import {
+  pushDockItem,
+  type DockedAnalysis,
+} from "@/components/map/analysisDock";
 
 import { FilterPanel } from "./FilterPanel";
 import { SavePolygonModal } from "./SavePolygonModal";
@@ -69,30 +77,11 @@ const BASE_LAYERS = {
   },
 };
 
-// Hardcoded regions for navigation
-const REGIONS = [
-  { code: "NORMANDIE", name: "Normandie", lat: 49.1829, lng: 0.37, zoom: 7 },
-  {
-    code: "PAYS_DE_LA_LOIRE",
-    name: "Pays de la Loire",
-    lat: 47.7633,
-    lng: -0.3297,
-    zoom: 7,
-  },
-  {
-    code: "CENTRE_VAL_DE_LOIRE",
-    name: "Centre-Val de Loire",
-    lat: 47.7516,
-    lng: 1.6751,
-    zoom: 7,
-  },
-];
-
 export function ForestMap() {
   const [drawnGeometry, setDrawnGeometry] = useState<any>(null);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
-  const [showResults, setShowResults] = useState(false);
+  const [showAnalysisPanel, setShowAnalysisPanel] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(5);
   const [wmsLayers, setWmsLayers] = useState<WMSLayerConfig[]>(WMS_LAYERS);
@@ -116,6 +105,7 @@ export function ForestMap() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [layersMenuOpen, setLayersMenuOpen] = useState(false);
   const map = useRef<any>(null);
+  const analysisResultRef = useRef<any>(null);
   const draw = useRef<any>(null);
   const mapProvider = useRef<"mapbox" | "maplibre" | null>(null);
   const setBaseStyle = useRef<((styleKey: MapStyleKey) => void) | null>(null);
@@ -128,14 +118,93 @@ export function ForestMap() {
     showCadastre,
     setViewState,
     setShowCadastre,
-    setFilters,
   } = useMapStore();
   const { user, logout, updateUser } = useAuthStore();
 
-  const { data: savedPolygonsData, refetch: refetchPolygons } =
-    useQuery(GET_MY_POLYGONS);
+  const { data: savedPolygonsData, refetch: refetchPolygons } = useQuery(
+    GET_MY_POLYGONS,
+    {
+      skip: !user,
+      fetchPolicy: "cache-and-network",
+    },
+  );
   const [updateMapState] = useMutation(UPDATE_MAP_STATE);
   const [savePolygon] = useMutation(SAVE_POLYGON_MUTATION);
+
+  const [dockedAnalyses, setDockedAnalyses] = useState<DockedAnalysis<any>[]>(
+    [],
+  );
+
+  useEffect(() => {
+    analysisResultRef.current = analysisResult;
+  }, [analysisResult]);
+
+  const analysisDrag = useAnalysisPanelDrag(
+    showAnalysisPanel ? String(analysisResult?.id ?? "") : "closed",
+  );
+
+  const openPolygonAnalysis = useCallback((result: any) => {
+    if (!result) return;
+    const prev = analysisResultRef.current;
+    if (prev && prev.id !== result.id) {
+      setDockedAnalyses((d) =>
+        pushDockItem(d, { id: prev.id, name: prev.name, result: prev }),
+      );
+    }
+    setDockedAnalyses((d) => d.filter((x) => x.id !== result.id));
+    setAnalysisResult(result);
+    setShowAnalysisPanel(false);
+
+    const m = map.current;
+    let revealed = false;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      setShowAnalysisPanel(true);
+    };
+
+    if (m && result.geometry && flyMapToPolygonGeometry(m, result.geometry)) {
+      const tid = window.setTimeout(reveal, 2200);
+      m.once("moveend", () => {
+        window.clearTimeout(tid);
+        reveal();
+      });
+    } else {
+      reveal();
+    }
+  }, []);
+
+  const minimizeAnalysis = useCallback(() => {
+    const r = analysisResultRef.current;
+    if (!r) return;
+    setDockedAnalyses((d) =>
+      pushDockItem(d, { id: r.id, name: r.name, result: r }),
+    );
+    setShowAnalysisPanel(false);
+    setAnalysisResult(null);
+  }, []);
+
+  const closeAnalysis = useCallback(() => {
+    const r = analysisResultRef.current;
+    if (r) {
+      setDockedAnalyses((d) => d.filter((x) => x.id !== r.id));
+    }
+    setShowAnalysisPanel(false);
+    setAnalysisResult(null);
+  }, []);
+
+  const restoreFromDock = useCallback(
+    (id: string) => {
+      setDockedAnalyses((d) => {
+        const item = d.find((x) => x.id === id);
+        if (item) {
+          requestAnimationFrame(() => openPolygonAnalysis(item.result));
+        }
+        return d;
+      });
+    },
+    [openPolygonAnalysis],
+  );
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -179,7 +248,7 @@ export function ForestMap() {
       const updateZoom = () => {
         const newZoom = map.current!.getZoom();
         setCurrentZoom(newZoom);
-        updateWMSLayerVisibility(newZoom);
+        updateWMSLayerVisibility(newZoom, map.current!);
       };
 
       map.current.on("load", () => {
@@ -253,7 +322,12 @@ export function ForestMap() {
 
         setIsQuerying(true);
         const { lng, lat } = e.lngLat;
-        const data = await queryAllLayers(lng, lat, map.current!);
+        const data = await queryAllLayers(
+          lng,
+          lat,
+          map.current!,
+          useMapStore.getState().filters,
+        );
         setIsQuerying(false);
 
         if (data?.region || data?.department || data?.commune || data?.forest) {
@@ -319,64 +393,74 @@ export function ForestMap() {
     });
   };
 
-  // Add WMS layers
-  const addWMSLayers = (mapInstance: any) => {
-    // Clean up existing layers first
-    wmsLayers.forEach((layer) => {
-      const sourceId = `wms-${layer.id}`;
-      const layerId = `wms-layer-${layer.id}`;
-
-      if (mapInstance.getLayer(layerId)) {
-        mapInstance.removeLayer(layerId);
-      }
-      if (mapInstance.getSource(sourceId)) {
-        mapInstance.removeSource(sourceId);
-      }
-    });
-
-    // Add all WMS layers
-    wmsLayers.forEach((layer) => {
-      const sourceId = `wms-${layer.id}`;
-      const layerId = `wms-layer-${layer.id}`;
-
-      mapInstance.addSource(sourceId, {
-        type: "raster",
-        tiles: [getWMSTileUrl(layer.layerName)],
-        tileSize: 256,
-        scheme: "xyz",
-      });
-
-      mapInstance.addLayer({
-        id: layerId,
-        type: "raster",
-        source: sourceId,
-        paint: {
-          "raster-opacity": layer.visible ? layer.opacity : 0,
-          ...getRasterTintPaintProps(
-            WMS_LAYERS.find((l) => l.id === layer.id)?.color,
-            layer.color,
-          ),
-        },
-        layout: { visibility: layer.visible ? "visible" : "none" },
-      });
-    });
-    updateWMSLayerVisibility(map.current!.getZoom());
-  };
-
-  const updateWMSLayerVisibility = (zoom: number) => {
-    if (!map.current) return;
+  const updateWMSLayerVisibility = (zoom: number, mapInstance?: any) => {
+    const m = mapInstance ?? map.current;
+    if (!m) return;
     wmsLayers.forEach((layer) => {
       const layerId = `wms-layer-${layer.id}`;
-      if (!map.current!.getLayer(layerId)) return;
+      if (!m.getLayer(layerId)) return;
       const shouldBeVisible =
         layer.visible && zoom >= layer.minZoom && zoom <= layer.maxZoom;
-      map.current!.setLayoutProperty(
+      m.setLayoutProperty(
         layerId,
         "visibility",
         shouldBeVisible ? "visible" : "none",
       );
     });
   };
+
+  // Add WMS layers (CQL matches Explore-area filters so tiles exclude other admin units)
+  const addWMSLayers = useCallback(
+    (mapInstance: any) => {
+      const mapFilters = useMapStore.getState().filters;
+
+      wmsLayers.forEach((layer) => {
+        const sourceId = `wms-${layer.id}`;
+        const layerId = `wms-layer-${layer.id}`;
+
+        if (mapInstance.getLayer(layerId)) {
+          mapInstance.removeLayer(layerId);
+        }
+        if (mapInstance.getSource(sourceId)) {
+          mapInstance.removeSource(sourceId);
+        }
+      });
+
+      wmsLayers.forEach((layer) => {
+        const sourceId = `wms-${layer.id}`;
+        const layerId = `wms-layer-${layer.id}`;
+        const cql = buildWmsCqlForLayer(layer.id, mapFilters);
+
+        mapInstance.addSource(sourceId, {
+          type: "raster",
+          tiles: [getWMSTileUrl(layer.layerName, cql)],
+          tileSize: 256,
+          scheme: "xyz",
+        });
+
+        mapInstance.addLayer({
+          id: layerId,
+          type: "raster",
+          source: sourceId,
+          paint: {
+            "raster-opacity": layer.visible ? layer.opacity : 0,
+            ...getRasterTintPaintProps(
+              WMS_LAYERS.find((l) => l.id === layer.id)?.color,
+              layer.color,
+            ),
+          },
+          layout: { visibility: layer.visible ? "visible" : "none" },
+        });
+      });
+      updateWMSLayerVisibility(mapInstance.getZoom(), mapInstance);
+    },
+    [wmsLayers],
+  );
+
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+    addWMSLayers(map.current);
+  }, [filters, mapLoaded, wmsLayers, addWMSLayers]);
 
   const handleToggleLayer = (layerId: string) => {
     const updatedLayers = wmsLayers.map((l) =>
@@ -455,8 +539,7 @@ export function ForestMap() {
       });
 
       // @ts-ignore
-      setAnalysisResult(data.savePolygon);
-      setShowResults(true);
+      openPolygonAnalysis(data.savePolygon);
       setShowSaveModal(false);
 
       draw.current?.deleteAll();
@@ -475,6 +558,15 @@ export function ForestMap() {
     map.current.flyTo({
       center: [lng, lat],
       zoom: zoom,
+      essential: true,
+    });
+  };
+
+  const handleDepartmentNavigate = (lat: number, lng: number, zoom: number) => {
+    if (!map.current) return;
+    map.current.flyTo({
+      center: [lng, lat],
+      zoom,
       essential: true,
     });
   };
@@ -627,13 +719,13 @@ export function ForestMap() {
       {/* Left stack: filters + saved polygons (scroll only inside cards) */}
       <div className="pointer-events-none absolute left-0 top-0 z-20 flex h-dvh w-[min(22rem,calc(100vw-0.75rem))] flex-col gap-2 overflow-hidden pl-2 pt-3 sm:left-3 sm:pl-0 sm:pt-4">
         <div className="pointer-events-auto flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
-          <FilterPanel onRegionSelect={handleRegionNavigate} />
+          <FilterPanel
+            onRegionSelect={handleRegionNavigate}
+            onDepartmentSelect={handleDepartmentNavigate}
+          />
           <SavedPolygonsList
             showEmptyState={hasCompletedPolygonDraw}
-            onSelectPolygon={(p) => {
-              setAnalysisResult(p);
-              setShowResults(true);
-            }}
+            onSelectPolygon={(p) => openPolygonAnalysis(p)}
           />
         </div>
       </div>
@@ -652,15 +744,36 @@ export function ForestMap() {
         />
       )}
 
-      {/* Analysis Results Panel */}
-      {showResults && analysisResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <PolygonResultsPanel
-            key={analysisResult.id}
-            result={analysisResult}
-            mapRef={map}
-            onClose={() => setShowResults(false)}
-          />
+      {/* Minimized analyses — Mac-style dock strip (max 5) */}
+      <AnalysisDockBar
+        items={dockedAnalyses.map((x) => ({ id: x.id, name: x.name }))}
+        onSelect={restoreFromDock}
+      />
+
+      {/* Analysis — original wide dimensions; centered; map flies first; no backdrop blur */}
+      {showAnalysisPanel && analysisResult && (
+        <div className="pointer-events-none fixed inset-0 z-50">
+          <div
+            className={`pointer-events-auto fixed left-1/2 z-50 max-h-[calc(100vh-4rem)] w-[min(96vw,56rem)] max-w-[min(96vw,56rem)] ${
+              dockedAnalyses.length > 0 ? "top-28" : "top-20"
+            }`}
+            style={{
+              transform: `translate(calc(-50% + ${analysisDrag.offset.x}px), ${analysisDrag.offset.y}px)`,
+            }}
+          >
+            <PolygonResultsPanel
+              key={analysisResult.id}
+              result={analysisResult}
+              mapRef={map}
+              onClose={closeAnalysis}
+              onMinimize={minimizeAnalysis}
+              headerDragProps={{
+                onPointerDown: analysisDrag.onPointerDown,
+                className:
+                  "cursor-grab active:cursor-grabbing select-none touch-none",
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -676,18 +789,6 @@ export function ForestMap() {
               lat={queryPopup.lat}
               data={queryPopup.data}
               onClose={() => setQueryPopup(null)}
-              onSelectRegion={(code) => {
-                setFilters({ regionCode: code });
-                setQueryPopup(null);
-              }}
-              onSelectDepartment={(code) => {
-                setFilters({ ...filters, departementCode: code });
-                setQueryPopup(null);
-              }}
-              onSelectCommune={(code) => {
-                setFilters({ ...filters, communeCode: code });
-                setQueryPopup(null);
-              }}
             />
           </div>
         </div>
