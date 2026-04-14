@@ -571,6 +571,15 @@ export function ForestMap() {
     });
   };
 
+  const handleCommuneNavigate = (bounds: [[number, number], [number, number]]) => {
+    if (!map.current) return;
+    map.current.fitBounds(bounds, {
+      padding: { top: 80, bottom: 80, left: 360, right: 80 },
+      duration: 900,
+      essential: true,
+    });
+  };
+
   // Display saved polygons
   useEffect(() => {
     // @ts-ignore
@@ -717,11 +726,12 @@ export function ForestMap() {
       />
 
       {/* Left stack: filters + saved polygons (scroll only inside cards) */}
-      <div className="pointer-events-none absolute left-0 top-0 z-20 flex h-dvh w-[min(22rem,calc(100vw-0.75rem))] flex-col gap-2 overflow-hidden pl-2 pt-3 sm:left-3 sm:pl-0 sm:pt-4">
+      <div className="pointer-events-none absolute left-0 top-0 z-20 flex h-dvh w-[min(28rem,calc(100vw-0.75rem))] flex-col gap-2 overflow-hidden pl-2 pt-3 sm:left-3 sm:pl-0 sm:pt-4">
         <div className="pointer-events-auto flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
           <FilterPanel
             onRegionSelect={handleRegionNavigate}
             onDepartmentSelect={handleDepartmentNavigate}
+            onCommuneSelect={handleCommuneNavigate}
           />
           <SavedPolygonsList
             showEmptyState={hasCompletedPolygonDraw}

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
+import { estimatedComboboxMinWidthPx } from "@/services/comboboxContentWidth";
 
 function norm(s: string) {
   return s
@@ -21,6 +22,8 @@ type LocationComboboxProps = {
   placeholder: string;
   disabled?: boolean;
   emptyHint?: string;
+  /** Hide inline clear when parent shows filter chips */
+  hideInlineClear?: boolean;
 };
 
 export function LocationCombobox({
@@ -31,11 +34,14 @@ export function LocationCombobox({
   placeholder,
   disabled,
   emptyHint = "No match",
+  hideInlineClear = false,
 }: LocationComboboxProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
-  const inputWrapRef = useRef<HTMLDivElement>(null);
+  /** Full trigger row (input + optional clear) — menu aligns to this width. */
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement | null>(null);
   const [menuPos, setMenuPos] = useState<{
     left: number;
     top: number;
@@ -53,6 +59,8 @@ export function LocationCombobox({
     if (!open) setQuery(selectedLabel);
   }, [value, selectedLabel, open]);
 
+  const showClear = Boolean(value) && !disabled && !hideInlineClear;
+
   const filtered = useMemo(() => {
     const q = norm(query.trim());
     if (!q) return options;
@@ -61,9 +69,27 @@ export function LocationCombobox({
     );
   }, [options, query]);
 
+  const labelMinWidthPx = useMemo(
+    () =>
+      estimatedComboboxMinWidthPx([
+        ...options.map((o) => o.label),
+        placeholder,
+      ]),
+    [options, placeholder],
+  );
+
+  /** Shrink-wrap to longest option (+ clear button when visible). */
+  const controlMaxWidthPx = useMemo(() => {
+    const clearSlack = showClear ? 40 : 0;
+    return labelMinWidthPx + clearSlack;
+  }, [labelMinWidthPx, showClear]);
+
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (rootRef.current?.contains(t)) return;
+      if (listRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
@@ -74,36 +100,68 @@ export function LocationCombobox({
       setMenuPos(null);
       return;
     }
+    let raf = 0;
     const compute = () => {
-      const wrap = inputWrapRef.current;
+      const wrap = triggerRef.current;
       if (!wrap) return;
       const r = wrap.getBoundingClientRect();
-      const gap = 4;
+      const gap = 0;
       const vh = window.innerHeight;
+      const vw = window.innerWidth;
       const desiredTop = r.bottom + gap;
-      const placeAbove = desiredTop + 240 > vh && r.top > vh / 3;
+      const placeAbove = desiredTop + 220 > vh && r.top > vh / 4;
+      const maxW = Math.max(120, vw - 16);
+      const width = Math.min(
+        maxW,
+        Math.max(160, r.width > 1 ? r.width : controlMaxWidthPx),
+      );
+      let left = r.left;
+      if (left + width > vw - 8) {
+        left = vw - 8 - width;
+      }
+      left = Math.max(8, left);
       setMenuPos({
-        left: Math.max(8, r.left),
-        top: placeAbove ? Math.max(8, r.top - gap) : Math.max(8, desiredTop),
-        width: Math.max(160, r.width),
+        left,
+        top: placeAbove ? Math.max(8, r.top) : Math.max(8, desiredTop),
+        width,
         placeAbove,
       });
     };
     compute();
-    window.addEventListener("resize", compute);
-    window.addEventListener("scroll", compute, true);
-    return () => {
-      window.removeEventListener("resize", compute);
-      window.removeEventListener("scroll", compute, true);
+    const onScrollOrResize = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(compute);
     };
-  }, [open, query, options.length]);
+    window.addEventListener("resize", onScrollOrResize);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", onScrollOrResize);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+    };
+  }, [open, controlMaxWidthPx]);
 
-  const showClear = Boolean(value) && !disabled;
+  const openBelow = open && menuPos && !menuPos.placeAbove && !disabled;
+  const openAbove = open && menuPos && menuPos.placeAbove && !disabled;
+
+  const inputClass =
+    "w-full min-w-0 border border-slate-200 bg-white py-2 pl-3 pr-9 text-sm text-slate-900 shadow-sm outline-none transition " +
+    "placeholder:text-slate-400 hover:border-slate-300 focus:border-[#0b4a59] focus:ring-2 focus:ring-[#0b4a59]/15 " +
+    "disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60 " +
+    (openBelow
+      ? "rounded-t-md rounded-b-none border-b-0 "
+      : openAbove
+        ? "rounded-b-md rounded-t-none border-t-0 "
+        : "rounded-md ");
 
   return (
-    <div ref={rootRef} className="relative w-full min-w-0">
-      <div className="flex min-w-0 gap-1">
-        <div ref={inputWrapRef} className="relative min-w-0 flex-1">
+    <div
+      ref={rootRef}
+      className="relative w-full min-w-0 max-w-full self-start"
+      style={{ maxWidth: `${controlMaxWidthPx}px` }}
+    >
+      <div ref={triggerRef} className="flex min-w-0 gap-1.5">
+        <div className="relative min-w-0 flex-1">
           <input
             id={id}
             type="text"
@@ -119,9 +177,20 @@ export function LocationCombobox({
               setOpen(true);
               setQuery(selectedLabel);
             }}
-            className="w-full min-w-0 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 pr-8 text-sm outline-none focus:border-transparent focus:ring-2 focus:ring-[#0b4a59] disabled:cursor-not-allowed disabled:opacity-50"
+            className={inputClass}
           />
-          <ChevronHint />
+          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400">
+            <ChevronDown
+              size={16}
+              strokeWidth={2}
+              className={
+                open
+                  ? "rotate-180 transition-transform"
+                  : "transition-transform"
+              }
+              aria-hidden
+            />
+          </span>
         </div>
         {showClear && (
           <button
@@ -133,9 +202,9 @@ export function LocationCombobox({
               setOpen(false);
               setQuery("");
             }}
-            className="shrink-0 rounded-lg border border-gray-200 bg-white px-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-800"
           >
-            <X size={16} strokeWidth={2} />
+            <X size={15} strokeWidth={2} />
           </button>
         )}
       </div>
@@ -144,13 +213,17 @@ export function LocationCombobox({
         menuPos &&
         createPortal(
           <ul
+            ref={listRef}
             role="listbox"
-            className="fixed z-9999 max-h-48 overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+            className={
+              "fixed z-9999 m-0 max-h-52 list-none overflow-y-auto overscroll-contain border border-slate-200 bg-white p-0 shadow-md " +
+              (menuPos.placeAbove
+                ? "rounded-t-md rounded-b-none border-b-0"
+                : "rounded-b-md rounded-t-none border-t border-slate-100")
+            }
             style={{
               left: menuPos.left,
-              top: menuPos.placeAbove
-                ? undefined
-                : menuPos.top,
+              top: menuPos.placeAbove ? undefined : menuPos.top,
               bottom: menuPos.placeAbove
                 ? Math.max(8, window.innerHeight - menuPos.top)
                 : undefined,
@@ -158,14 +231,21 @@ export function LocationCombobox({
             }}
           >
             {filtered.length === 0 ? (
-              <li className="px-3 py-2 text-xs text-gray-500">{emptyHint}</li>
+              <li className="list-none px-3 py-2.5 text-xs text-slate-500">
+                {emptyHint}
+              </li>
             ) : (
               filtered.map((o) => (
-                <li key={o.value}>
+                <li key={o.value} className="list-none">
                   <button
                     type="button"
                     role="option"
-                    className="w-full min-w-0 truncate whitespace-nowrap px-3 py-2 text-left text-sm hover:bg-gray-50"
+                    className={
+                      "flex w-full min-w-0 appearance-none items-center border-0 bg-transparent px-3 py-2.5 " +
+                      "text-left text-sm leading-snug text-slate-800 shadow-none outline-none ring-0 " +
+                      "transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 " +
+                      "active:bg-slate-100"
+                    }
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
                       onChange(o.value);
@@ -173,7 +253,9 @@ export function LocationCombobox({
                       setQuery(o.label);
                     }}
                   >
-                    {o.label}
+                    <span className="block truncate" title={o.label}>
+                      {o.label}
+                    </span>
                   </button>
                 </li>
               ))
@@ -182,24 +264,5 @@ export function LocationCombobox({
           document.body,
         )}
     </div>
-  );
-}
-
-function ChevronHint() {
-  return (
-    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400">
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        className="rotate-90"
-        aria-hidden
-      >
-        <path d="m9 18 6-6-6-6" />
-      </svg>
-    </span>
   );
 }

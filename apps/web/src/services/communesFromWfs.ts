@@ -1,5 +1,6 @@
 const GEOSERVER_URL = "/geoserver";
-const COMMUNE_TYPENAME = "prod:cummune";
+const WORKSPACE = process.env.NEXT_PUBLIC_GEOSERVER_WORKSPACE || "prod";
+const COMMUNE_TYPENAME = `${WORKSPACE}:cummune`;
 
 const P_INSEE =
   process.env.NEXT_PUBLIC_WMS_COMMUNE_CODE_ATTR ?? "code_insee";
@@ -8,6 +9,13 @@ const P_DEPT =
   process.env.NEXT_PUBLIC_WMS_COMMUNE_DEPT_ATTR ?? "code_insee_du_departement";
 
 export type CommuneOption = { code: string; nom: string };
+
+function normalizeDepartementCode(input: string): string {
+  const raw = String(input ?? "").trim();
+  // Mainland depts: 01..95 (often stored as 1..9 in some datasets)
+  if (/^\d{1}$/.test(raw)) return raw.padStart(2, "0");
+  return raw;
+}
 
 function parseFeatures(data: {
   features?: Array<{ properties?: Record<string, unknown> }>;
@@ -62,7 +70,8 @@ async function wfsGetFeatures(cql: string): Promise<CommuneOption[]> {
 export async function fetchCommunesForDepartment(
   departementCode: string,
 ): Promise<CommuneOption[]> {
-  const q = departementCode.replace(/'/g, "''");
+  const normalized = normalizeDepartementCode(departementCode);
+  const q = normalized.replace(/'/g, "''");
 
   const attempts = [
     `${P_DEPT}='${q}'`,

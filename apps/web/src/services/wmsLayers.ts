@@ -65,7 +65,7 @@ export const WMS_LAYERS: WMSLayerConfig[] = [
     {
         id: 'commune',
         name: 'Commune',
-        layerName: 'cummune', // Note: typo in your URL
+        layerName: 'cummune',
         minZoom: 10,
         maxZoom: 22,
         opacity: 0.5,

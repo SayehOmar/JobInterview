@@ -49,6 +49,8 @@ import {
 } from "lucide-react";
 import {
   savedPolyPillBtn,
+  savedPolyPillBtnPrimary,
+  savedPolyPillBtnWideMuted,
   savedPolyRoundBtnDanger,
   savedPolyRoundBtnMuted,
   savedPolyRoundBtnTeal,
@@ -971,7 +973,7 @@ export function SavedPolygonsList({
             <button
               type="button"
               onClick={() => setPanelExpanded(true)}
-              className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-left text-xs text-gray-600 transition hover:bg-gray-100"
+              className={savedPolyPillBtnWideMuted}
             >
               {polygons.length} polygon{polygons.length === 1 ? "" : "s"} — tap to expand
             </button>
@@ -984,10 +986,7 @@ export function SavedPolygonsList({
                 placeholder="Folder name"
                 className="flex-1 min-w-0 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:ring-2 focus:ring-[#0b4a59]/25"
               />
-              <button
-                type="submit"
-                className="rounded-full border border-[#0b4a59]/30 bg-[#0b4a59] px-4 py-2 text-sm font-medium text-white shadow-md transition hover:opacity-95 active:scale-[0.98]"
-              >
+              <button type="submit" className={savedPolyPillBtnPrimary}>
                 Add
               </button>
             </form>

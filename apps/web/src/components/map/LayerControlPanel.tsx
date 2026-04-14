@@ -9,6 +9,7 @@ import {
   mapDropdownHeaderClass,
   mapDropdownPanelClass,
 } from "./mapDropdownStyles";
+import { savedPolyPillBtnWideMuted } from "./savedPolygonsUi";
 
 const PICKER_W = 232;
 const PICKER_H = 268;
@@ -125,7 +126,7 @@ export function LayerControlPanel({
             <button
               type="button"
               onClick={() => setLayersListExpanded(true)}
-              className="w-full border-b border-gray-200 bg-gray-50 px-3 py-2 text-left text-xs text-gray-600 transition hover:bg-gray-100"
+              className={`${savedPolyPillBtnWideMuted} mx-2 mb-2 min-h-[2.75rem]`}
             >
               {layers.length} layer{layers.length === 1 ? "" : "s"} ·{" "}
               {visibleAtZoomCount} visible at this zoom — tap to expand

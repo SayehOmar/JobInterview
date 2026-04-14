@@ -2,6 +2,7 @@
 
 import { User, LogOut } from 'lucide-react';
 import { mapDropdownHeaderClass, mapDropdownPanelClass } from './mapDropdownStyles';
+import { savedPolyPillBtnDanger } from './savedPolygonsUi';
 import { useAreaUnitStore } from '@/store/areaUnitStore';
 import type { AreaUnit } from '@/services/areaFormat';
 
@@ -74,18 +75,20 @@ export function UserMenuDropdown({ userEmail, onLogout, open, onOpenChange }: Us
                             ))}
                         </div>
                     </div>
-                    <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                            onOpenChange(false);
-                            onLogout();
-                        }}
-                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-red-600 hover:bg-red-50"
-                    >
-                        <LogOut size={16} />
-                        Log out
-                    </button>
+                    <div className="px-3 pb-3 pt-1">
+                        <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                                onOpenChange(false);
+                                onLogout();
+                            }}
+                            className={savedPolyPillBtnDanger}
+                        >
+                            <LogOut size={16} strokeWidth={2} />
+                            Log out
+                        </button>
+                    </div>
                 </div>
             )}
         </div>
