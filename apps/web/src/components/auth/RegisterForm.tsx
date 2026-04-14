@@ -10,18 +10,10 @@ import { useAuthStore } from "@/store/authStore";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 
 const registerSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().email("Please enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-  firstName: z
-    .string()
-    .min(2, "First name is required")
-    .optional()
-    .or(z.literal("")),
-  lastName: z
-    .string()
-    .min(2, "Last name is required")
-    .optional()
-    .or(z.literal("")),
+  firstName: z.string().min(2, "Min 2 characters").optional().or(z.literal("")),
+  lastName: z.string().min(2, "Min 2 characters").optional().or(z.literal("")),
 });
 
 type RegisterFormData = z.infer<typeof registerSchema>;
@@ -48,141 +40,347 @@ export function RegisterForm({ onToggle }: RegisterFormProps) {
   const onSubmit = async (data: RegisterFormData) => {
     try {
       setError("");
-      // Remove empty strings
       const input = {
         email: data.email,
         password: data.password,
         firstName: data.firstName || undefined,
         lastName: data.lastName || undefined,
       };
-
-      const result = await registerMutation({
-        variables: { input },
-      });
-
+      const result = await registerMutation({ variables: { input } });
       // @ts-ignore
       const { token, user } = result.data.register;
       setAuth(user, token);
     } catch (err: any) {
-      setError(
-        err.message || "Registration failed. Email may already be in use.",
-      );
+      setError(err.message || "Registration failed. Email may already be in use.");
     }
   };
 
+  const isBusy = loading || isSubmitting;
+
   return (
-    <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg border border-gray-100">
-      <div className="text-center">
-        <h2 className="text-3xl font-bold text-gray-900">Create account</h2>
-        <p className="mt-2 text-sm text-gray-600">
-          Start exploring French forest data
-        </p>
+    <div style={styles.card}>
+
+      {/* Badge */}
+      <div style={styles.badge}>
+        <span style={styles.badgeDot} />
+        Forest Viewer
       </div>
 
+      {/* Header */}
+      <h2 style={styles.title}>Create account</h2>
+      <p style={styles.subtitle}>Start exploring French forest data</p>
+
+      <hr style={styles.sep} />
+
+      {/* Error banner */}
       {error && (
-        <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg">
+        <div style={styles.errorBanner}>
+          <span style={styles.errorDot} />
           {error}
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+      <form onSubmit={handleSubmit(onSubmit)}>
+
+        {/* Name row */}
+        <div style={styles.nameGrid}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              First Name
-            </label>
-            <input
-              {...register("firstName")}
-              placeholder="Jean"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-            />
+            <label style={styles.label}>First name</label>
+            <div style={styles.inputGroup}>
+              <input
+                {...register("firstName")}
+                placeholder="Jean"
+                autoComplete="given-name"
+                style={styles.input}
+              />
+            </div>
             {errors.firstName && (
-              <p className="mt-1 text-sm text-red-600">
+              <p style={styles.fieldError}>
+                <span style={styles.errorDot} />
                 {errors.firstName.message}
               </p>
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Last Name
-            </label>
-            <input
-              {...register("lastName")}
-              placeholder="Dupont"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-            />
+            <label style={styles.label}>Last name</label>
+            <div style={styles.inputGroup}>
+              <input
+                {...register("lastName")}
+                placeholder="Dupont"
+                autoComplete="family-name"
+                style={styles.input}
+              />
+            </div>
             {errors.lastName && (
-              <p className="mt-1 text-sm text-red-600">
+              <p style={styles.fieldError}>
+                <span style={styles.errorDot} />
                 {errors.lastName.message}
               </p>
             )}
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Email address
-          </label>
-          <input
-            {...register("email")}
-            type="email"
-            placeholder="you@example.com"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-          />
+        {/* Email */}
+        <div style={styles.field}>
+          <label style={styles.label}>Email address</label>
+          <div style={styles.inputGroup}>
+            <input
+              {...register("email")}
+              type="email"
+              placeholder="you@example.com"
+              autoComplete="email"
+              style={styles.input}
+            />
+          </div>
           {errors.email && (
-            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+            <p style={styles.fieldError}>
+              <span style={styles.errorDot} />
+              {errors.email.message}
+            </p>
           )}
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Password
-          </label>
-          <div className="relative">
+        {/* Password */}
+        <div style={styles.field}>
+          <label style={styles.label}>Password</label>
+          <div style={styles.inputGroup}>
             <input
               {...register("password")}
               type={showPassword ? "text" : "password"}
-              placeholder="••••••••"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all "
+              placeholder="your password"
+              autoComplete="new-password"
+              style={styles.input}
             />
+            <div style={styles.eyeSep} />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              style={styles.eyeBtn}
+              aria-label="Toggle password visibility"
             >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
           {errors.password && (
-            <p className="mt-1 text-sm text-red-600">
+            <p style={styles.fieldError}>
+              <span style={styles.errorDot} />
               {errors.password.message}
             </p>
           )}
         </div>
 
+        {/* Submit */}
         <button
           type="submit"
-          disabled={loading || isSubmitting}
-          className="w-full px-4 py-2.5 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors flex items-center justify-center gap-2 hover:opacity-90"
-          style={{ backgroundColor: "#0b4a59" }}
+          disabled={isBusy}
+          style={{ ...styles.btnPrimary, ...(isBusy ? styles.btnDisabled : {}) }}
         >
-          {(loading || isSubmitting) && (
-            <Loader2 className="animate-spin" size={18} />
-          )}
+          {isBusy && <Loader2 size={15} className="animate-spin" />}
           Create Account
         </button>
       </form>
 
-      <p className="text-center text-sm text-gray-600">
+      {/* Footer */}
+      <p style={styles.footer}>
         Already have an account?{" "}
-        <button
-          onClick={onToggle}
-          className="text-blue-600 hover:text-blue-700 font-medium hover:underline transition-colors"
-          style={{ color: "#0b4a59" }}
-        >
+        <button onClick={onToggle} style={styles.link}>
           Sign in
         </button>
       </p>
     </div>
   );
 }
+
+const BRAND = "#0b4a59";
+
+const styles = {
+  card: {
+    width: "100%",
+    maxWidth: 400,
+    background: "#ffffff",
+    borderRadius: 18,
+    border: "1px solid #dde5e2",
+    padding: "44px 40px 36px",
+    fontFamily: "'Sora', sans-serif",
+  } as React.CSSProperties,
+
+  badge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    background: "#e6f0ed",
+    color: BRAND,
+    fontSize: 11,
+    fontWeight: 500,
+    letterSpacing: "0.06em",
+    padding: "4px 10px",
+    borderRadius: 20,
+    marginBottom: 20,
+  } as React.CSSProperties,
+
+  badgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: "50%",
+    background: BRAND,
+    flexShrink: 0,
+    display: "inline-block",
+  } as React.CSSProperties,
+
+  title: {
+    fontSize: 26,
+    fontWeight: 600,
+    color: "#0d1f24",
+    margin: "0 0 6px",
+    lineHeight: 1.2,
+  } as React.CSSProperties,
+
+  subtitle: {
+    fontSize: 13.5,
+    color: "#6b8a90",
+    fontWeight: 300,
+    margin: "0 0 32px",
+  } as React.CSSProperties,
+
+  sep: {
+    border: "none",
+    borderTop: "1px solid #e8eeec",
+    margin: "0 0 28px",
+  } as React.CSSProperties,
+
+  errorBanner: {
+    background: "#fff5f5",
+    border: "1px solid #fccaca",
+    borderRadius: 10,
+    padding: "10px 14px",
+    fontSize: 12.5,
+    color: "#c0392b",
+    marginBottom: 20,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  } as React.CSSProperties,
+
+  nameGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 12,
+    marginBottom: 18,
+  } as React.CSSProperties,
+
+  field: {
+    marginBottom: 18,
+  } as React.CSSProperties,
+
+  label: {
+    display: "block",
+    fontSize: 11.5,
+    fontWeight: 500,
+    color: "#4a6870",
+    letterSpacing: "0.05em",
+    textTransform: "uppercase",
+    marginBottom: 7,
+  } as React.CSSProperties,
+
+  inputGroup: {
+    display: "flex",
+    alignItems: "center",
+    border: "1.5px solid #d0ddd9",
+    borderRadius: 10,
+    background: "#f8fbfa",
+    overflow: "hidden",
+    transition: "border-color 0.18s, background 0.18s",
+  } as React.CSSProperties,
+
+  input: {
+    flex: 1,
+    border: "none",
+    outline: "none",
+    background: "transparent",
+    padding: "11px 14px",
+    fontSize: 14,
+    fontFamily: "inherit",
+    color: "#0d1f24",
+    fontWeight: 400,
+  } as React.CSSProperties,
+
+  eyeSep: {
+    width: 1,
+    height: 18,
+    background: "#d0ddd9",
+    flexShrink: 0,
+  } as React.CSSProperties,
+
+  eyeBtn: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    padding: "0 13px",
+    height: 42,
+    display: "flex",
+    alignItems: "center",
+    color: "#8aabb2",
+    flexShrink: 0,
+  } as React.CSSProperties,
+
+  fieldError: {
+    fontSize: 12,
+    color: "#c0392b",
+    marginTop: 5,
+    paddingLeft: 2,
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+  } as React.CSSProperties,
+
+  errorDot: {
+    width: 4,
+    height: 4,
+    borderRadius: "50%",
+    background: "#c0392b",
+    flexShrink: 0,
+    display: "inline-block",
+  } as React.CSSProperties,
+
+  btnPrimary: {
+    width: "100%",
+    height: 44,
+    background: BRAND,
+    color: "#fff",
+    border: "none",
+    borderRadius: 10,
+    fontFamily: "inherit",
+    fontSize: 14,
+    fontWeight: 500,
+    cursor: "pointer",
+    marginTop: 6,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    letterSpacing: "0.01em",
+  } as React.CSSProperties,
+
+  btnDisabled: {
+    opacity: 0.45,
+    cursor: "not-allowed",
+  } as React.CSSProperties,
+
+  footer: {
+    textAlign: "center",
+    marginTop: 24,
+    fontSize: 13,
+    color: "#7a9ea6",
+  } as React.CSSProperties,
+
+  link: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    fontSize: 13,
+    fontWeight: 500,
+    color: BRAND,
+    padding: 0,
+  } as React.CSSProperties,
+};
