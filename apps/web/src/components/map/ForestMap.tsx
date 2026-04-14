@@ -244,6 +244,42 @@ export function ForestMap() {
     [],
   );
 
+  // Persist minimized analyses across refresh.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("forest-bd-analysis-dock");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return;
+      const restored = parsed
+        .filter(
+          (x): x is DockedAnalysis<any> =>
+            x &&
+            typeof x === "object" &&
+            typeof (x as { id?: unknown }).id === "string" &&
+            typeof (x as { name?: unknown }).name === "string" &&
+            "result" in (x as Record<string, unknown>),
+        )
+        .slice(-5);
+      if (restored.length > 0) setDockedAnalyses(restored);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(
+        "forest-bd-analysis-dock",
+        JSON.stringify(dockedAnalyses),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [dockedAnalyses]);
+
   useEffect(() => {
     analysisResultRef.current = analysisResult;
   }, [analysisResult]);
@@ -254,12 +290,7 @@ export function ForestMap() {
 
   const openPolygonAnalysis = useCallback((result: any) => {
     if (!result) return;
-    const prev = analysisResultRef.current;
-    if (prev && prev.id !== result.id) {
-      setDockedAnalyses((d) =>
-        pushDockItem(d, { id: prev.id, name: prev.name, result: prev }),
-      );
-    }
+    // Opening an analysis (e.g. from Saved Polygons) must not mutate minimized items.
     setDockedAnalyses((d) => d.filter((x) => x.id !== result.id));
     setAnalysisResult(result);
     setShowAnalysisPanel(false);
@@ -908,8 +939,10 @@ export function ForestMap() {
 
       {/* Minimized analyses — Mac-style dock strip (max 5) */}
       <AnalysisDockBar
+        onClose={(id) => setDockedAnalyses((d) => d.filter((x) => x.id !== id))}
         items={dockedAnalyses.map((x) => ({ id: x.id, name: x.name }))}
         onSelect={restoreFromDock}
+        
       />
 
       {/* Analysis — original wide dimensions; centered; map flies first; no backdrop blur */}

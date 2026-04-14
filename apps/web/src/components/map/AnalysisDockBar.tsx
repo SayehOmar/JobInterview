@@ -1,6 +1,6 @@
 "use client";
 
-import { Trees } from "lucide-react";
+import { Trees, X } from "lucide-react";
 
 export type DockBarItem = {
   id: string;
@@ -10,12 +10,17 @@ export type DockBarItem = {
 type AnalysisDockBarProps = {
   items: DockBarItem[];
   onSelect: (id: string) => void;
+  onClose?: (id: string) => void;
 };
 
 /**
  * Top-of-screen “taskbar” for minimized analysis windows — Mac dock–style hover scale.
  */
-export function AnalysisDockBar({ items, onSelect }: AnalysisDockBarProps) {
+export function AnalysisDockBar({
+  items,
+  onSelect,
+  onClose,
+}: AnalysisDockBarProps) {
   if (items.length === 0) return null;
 
   return (
@@ -30,6 +35,20 @@ export function AnalysisDockBar({ items, onSelect }: AnalysisDockBarProps) {
             key={item.id}
             className="group relative flex min-w-0 flex-col items-center"
           >
+            {onClose && (
+              <button
+                type="button"
+                aria-label={`Close minimized analysis: ${item.name}`}
+                title="Close"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClose(item.id);
+                }}
+                className="absolute -top-1 -right-1 z-10 grid h-5 w-5 place-items-center rounded-full border border-white/30 bg-black/50 text-white/90 opacity-0 shadow-sm backdrop-blur transition-opacity duration-150 hover:bg-black/70 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60"
+              >
+                <X size={12} strokeWidth={2.5} />
+              </button>
+            )}
             {/* Only the circle is clickable */}
             <button
               type="button"
