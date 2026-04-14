@@ -55,9 +55,9 @@ import {
   savedPolyRoundBtnMuted,
   savedPolyRoundBtnTeal,
 } from "./savedPolygonsUi";
-import { formatArea } from "@/services/areaFormat";
+import { formatArea } from "@/services/format/areaFormat";
 import { useAreaUnitStore } from "@/store/areaUnitStore";
-import { getDisplayForestCoverForPolygon } from "@/services/polygonAnalysisDisplay";
+import { getDisplayForestCoverForPolygon } from "@/services/geo/polygonAnalysisDisplay";
 
 type PolygonRow = {
   id: string;
@@ -948,13 +948,14 @@ export function SavedPolygonsList({
                 type="button"
                 aria-expanded={panelExpanded}
                 aria-label={panelExpanded ? "Collapse saved polygons" : "Expand saved polygons"}
+                title={panelExpanded ? "Collapse saved polygons" : "Expand saved polygons"}
                 onClick={() => setPanelExpanded((v) => !v)}
-                className="shrink-0 rounded-md p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
+                className={`${savedPolyRoundBtnMuted} shrink-0 p-0.5`}
               >
                 {panelExpanded ? (
-                  <ChevronDown size={18} strokeWidth={2} />
+                  <ChevronDown size={16} strokeWidth={2} />
                 ) : (
-                  <ChevronRight size={18} strokeWidth={2} />
+                  <ChevronRight size={16} strokeWidth={2} />
                 )}
               </button>
               <button

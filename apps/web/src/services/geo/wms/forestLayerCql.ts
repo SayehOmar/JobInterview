@@ -1,6 +1,6 @@
 import type { MapFilters } from "@/store/mapStore";
-import { departementsForRegion } from "@/services/frInseeAdmin";
-import { DEPARTEMENT_NAMES } from "@/services/frDepartmentNames";
+import { departementsForRegion } from "@/services/admin/frInseeAdmin";
+import { DEPARTEMENT_NAMES } from "@/services/admin/frDepartmentNames";
 
 const Q = (s: string) => s.replace(/'/g, "''");
 
@@ -65,3 +65,4 @@ export function buildForestLayerCql(filters: MapFilters): string | undefined {
 
   return undefined;
 }
+

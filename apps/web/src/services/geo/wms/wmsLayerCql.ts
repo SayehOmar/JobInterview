@@ -1,5 +1,5 @@
 import type { MapFilters } from "@/store/mapStore";
-import { buildForestLayerCql } from "@/services/forestLayerCql";
+import { buildForestLayerCql } from "@/services/geo/wms/forestLayerCql";
 
 /**
  * GeoServer CQL for prod:* WMS layers. Uses typical PostGIS view column names; if
@@ -7,17 +7,12 @@ import { buildForestLayerCql } from "@/services/forestLayerCql";
  */
 const Q = (s: string) => s.replace(/'/g, "''");
 
-const REGION_INSEE =
-  process.env.NEXT_PUBLIC_WMS_REGION_CODE_ATTR ?? "code_insee";
-const CODE_REGION =
-  process.env.NEXT_PUBLIC_WMS_CODE_REGION_ATTR ?? "code_region";
-const DEPT_INSEE =
-  process.env.NEXT_PUBLIC_WMS_DEPT_CODE_ATTR ?? "code_insee";
-const COMMUNE_INSEE =
-  process.env.NEXT_PUBLIC_WMS_COMMUNE_CODE_ATTR ?? "code_insee";
+const REGION_INSEE = process.env.NEXT_PUBLIC_WMS_REGION_CODE_ATTR ?? "code_insee";
+const CODE_REGION = process.env.NEXT_PUBLIC_WMS_CODE_REGION_ATTR ?? "code_region";
+const DEPT_INSEE = process.env.NEXT_PUBLIC_WMS_DEPT_CODE_ATTR ?? "code_insee";
+const COMMUNE_INSEE = process.env.NEXT_PUBLIC_WMS_COMMUNE_CODE_ATTR ?? "code_insee";
 const COMMUNE_DEPT =
-  process.env.NEXT_PUBLIC_WMS_COMMUNE_DEPT_ATTR ??
-  "code_insee_du_departement";
+  process.env.NEXT_PUBLIC_WMS_COMMUNE_DEPT_ATTR ?? "code_insee_du_departement";
 
 /**
  * Builds a CQL_FILTER fragment for the given UI layer id so only features matching
@@ -55,3 +50,4 @@ export function buildWmsCqlForLayer(
 
   return undefined;
 }
+

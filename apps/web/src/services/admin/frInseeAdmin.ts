@@ -39,3 +39,4 @@ export function sortDepartementCodes(codes: string[]): string[] {
     deptSortKey(a).localeCompare(deptSortKey(b), "fr", { numeric: true }),
   );
 }
+

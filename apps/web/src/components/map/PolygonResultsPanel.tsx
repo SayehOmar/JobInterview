@@ -22,15 +22,15 @@ import {
   Loader2,
   Minimize2,
 } from "lucide-react";
-import type { SavedLocationContext } from "@/services/locationContextSnapshot";
-import { buildLocationContextFromDrawnGeometry } from "@/services/locationContextSnapshot";
+import type { SavedLocationContext } from "@/services/geo/locationContextSnapshot";
+import { buildLocationContextFromDrawnGeometry } from "@/services/geo/locationContextSnapshot";
 import {
   buildEffectiveForestCover,
   buildEffectiveSpeciesRows,
   mergeLocationContext,
   parseForestSurfaceHectares,
-} from "@/services/polygonAnalysisDisplay";
-import { formatArea } from "@/services/areaFormat";
+} from "@/services/geo/polygonAnalysisDisplay";
+import { formatArea } from "@/services/format/areaFormat";
 import { useAreaUnitStore } from "@/store/areaUnitStore";
 import { savedPolyPillBtnOutline } from "@/components/map/savedPolygonsUi";
 
@@ -265,7 +265,7 @@ export function PolygonResultsPanel({
 
     return (
     <div
-      className={`bg-white rounded-xl shadow-2xl w-full min-w-0 max-h-[85vh] flex flex-col overflow-x-hidden ${rootClassName}`}
+      className={`bg-white rounded-xl shadow-2xl w-full min-w-0 h-full max-h-none flex flex-col overflow-x-hidden ${rootClassName}`}
     >
             {/* Header */}
       <div
@@ -292,7 +292,7 @@ export function PolygonResultsPanel({
                         </p>
                     </div>
                 </div>
-        <div className="flex shrink-0 items-start gap-0.5">
+        <div className="flex shrink-0 items-start gap-1">
           {onMinimize && (
             <button
               type="button"
@@ -300,7 +300,7 @@ export function PolygonResultsPanel({
               aria-label="Minimize analysis"
               onClick={onMinimize}
               onPointerDown={(e) => e.stopPropagation()}
-              className="rounded-lg p-2 transition-colors hover:bg-white/20"
+              className="grid h-10 w-10 place-items-center rounded-full border border-white/20 bg-white/10 text-white/95 shadow-sm backdrop-blur transition hover:bg-white/15 hover:shadow-md active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60"
             >
               <Minimize2 size={20} strokeWidth={2} />
             </button>
@@ -311,7 +311,7 @@ export function PolygonResultsPanel({
             aria-label="Close analysis"
                     onClick={onClose}
             onPointerDown={(e) => e.stopPropagation()}
-            className="rounded-lg p-2 transition-colors hover:bg-white/20"
+            className="grid h-10 w-10 place-items-center rounded-full border border-white/20 bg-white/10 text-white/95 shadow-sm backdrop-blur transition hover:bg-white/15 hover:shadow-md active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60"
                 >
                     <X size={20} />
                 </button>
@@ -384,105 +384,200 @@ export function PolygonResultsPanel({
                 <Trees size={18} className="text-emerald-600" />
                 Location snapshot (BD Forêt & admin)
               </h4>
-              {hasForestSnapshot && forestProps ? (
-                <div className="w-full p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 shadow-sm">
-                  <div className="flex items-center gap-3 mb-3 pb-2 border-b border-emerald-200">
-                    <div className="p-2 bg-emerald-100 rounded-lg">
-                      <Trees size={22} className="text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
-                        Forest parcel (BD Forêt)
-                      </p>
-                      <h3 className="text-lg font-bold text-gray-900 leading-tight">
-                        {(forestName as string) || "Forest area"}
-                      </h3>
-                    </div>
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <div className="mb-4">
+                  <div className="flex items-center gap-2">
+                    <Trees size={20} className="text-[#0b4a59]" />
+                    <h4 className="font-semibold text-gray-900">
+                      Location snapshot (BD Forêt & admin)
+                    </h4>
                   </div>
-                  <div className="space-y-2 text-sm">
-                    {forestId != null && (
-                      <div className="flex justify-between items-start gap-2">
-                        <span className="text-emerald-600 font-medium shrink-0">
-                          ID:
-                        </span>
-                        <span className="font-mono text-xs text-gray-700 bg-white px-2 py-1 rounded border border-emerald-100 break-all text-right max-w-[min(100%,280px)]">
-                          {String(forestId)}
-                        </span>
+                  <p className="mt-1 text-xs text-gray-500 pl-7">
+                    Details captured at the polygon centroid.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {hasForestSnapshot && forestProps && (
+                    <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-8 h-8 bg-[#0b4a59] text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">
+                            <Trees size={16} />
+                          </div>
+                          <div className="min-w-0">
+                            <h5 className="font-semibold text-gray-900 truncate">
+                              Forest parcel (BD Forêt)
+                            </h5>
+                            <p className="text-xs text-gray-500 truncate">
+                              {(forestName as string) || "Forest area"}
+                            </p>
+                          </div>
+                        </div>
+                        {forestLayer && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-600 shrink-0">
+                            <FileType size={12} />
+                            {forestLayer}
+                          </span>
+                        )}
                       </div>
-                    )}
-                    {forestType != null && (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-emerald-600 font-medium">
-                          Type:
-                        </span>
-                        <span className="text-gray-800 font-medium bg-emerald-100/50 px-2 py-1 rounded">
-                          {String(forestType)}
-                        </span>
+
+                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {forestId != null && (
+                          <div className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                            <span className="text-xs font-semibold text-gray-600">
+                              ID
+                            </span>
+                            <span className="font-mono text-[11px] text-gray-700 break-all text-right">
+                              {String(forestId)}
+                            </span>
+                          </div>
+                        )}
+                        {forestCode != null && (
+                          <div className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                            <span className="text-xs font-semibold text-gray-600">
+                              Code TFV
+                            </span>
+                            <span className="font-mono text-[11px] text-gray-700">
+                              {String(forestCode)}
+                            </span>
+                          </div>
+                        )}
+                        {forestType != null && (
+                          <div className="sm:col-span-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                            <p className="text-xs font-semibold text-gray-600">
+                              Type
+                            </p>
+                            <p className="mt-0.5 text-sm font-medium text-gray-900">
+                              {String(forestType)}
+                            </p>
+                          </div>
+                        )}
+                        {forestSpecies != null && (
+                          <div className="sm:col-span-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                            <p className="text-xs font-semibold text-gray-600">
+                              Species
+                            </p>
+                            <p className="mt-0.5 text-sm font-medium text-gray-900">
+                              {String(forestSpecies)}
+                            </p>
+                          </div>
+                        )}
+                        {forestCategory != null && (
+                          <div className="sm:col-span-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                            <p className="text-xs font-semibold text-gray-600">
+                              Category
+                            </p>
+                            <p className="mt-0.5 text-sm font-medium text-gray-800">
+                              {String(forestCategory)}
+                            </p>
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {forestCategory != null && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-emerald-600 font-medium">
-                          Category:
-                        </span>
-                        <span className="text-gray-700">
-                          {String(forestCategory)}
-                        </span>
+                    </div>
+                  )}
+
+                  {lc.region && (
+                    <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-8 h-8 bg-[#0b4a59] text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">
+                            <Landmark size={16} />
+                          </div>
+                          <div className="min-w-0">
+                            <h5 className="font-semibold text-gray-900 truncate">
+                              Region
+                            </h5>
+                            <p className="text-xs text-gray-500 truncate">
+                              Administrative
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                    {forestSpecies != null && (
-                      <div className="flex flex-col gap-1">
-                        <span className="text-emerald-600 font-medium">
-                          Species:
-                        </span>
-                        <span className="text-gray-800 font-medium">
-                          {String(forestSpecies)}
-                        </span>
+                      <div className="mt-3 space-y-2 text-sm max-h-48 min-w-0 overflow-y-auto overflow-x-hidden">
+                        {Object.entries(lc.region).map(([k, v]) => (
+                          <div key={k} className="flex items-start justify-between gap-2">
+                            <span className="text-xs font-semibold text-gray-600 shrink-0">
+                              {formatKvLabel(k)}
+                            </span>
+                            <span className="text-xs text-gray-800 break-words text-right">
+                              {String(v)}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    )}
-                    {forestCode != null && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-emerald-600 font-medium">
-                          Code TFV:
-                        </span>
-                        <span className="font-mono text-xs text-gray-600">
-                          {String(forestCode)}
-                        </span>
+                    </div>
+                  )}
+
+                  {lc.department && (
+                    <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-8 h-8 bg-[#0b4a59] text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">
+                            <Building2 size={16} />
+                          </div>
+                          <div className="min-w-0">
+                            <h5 className="font-semibold text-gray-900 truncate">
+                              Department
+                            </h5>
+                            <p className="text-xs text-gray-500 truncate">
+                              Administrative
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  {forestLayer && (
-                    <div className="mt-3 pt-2 border-t border-emerald-200 flex items-center gap-2 text-xs text-emerald-600">
-                      <FileType size={12} />
-                      <span className="font-medium">Source: {forestLayer}</span>
+                      <div className="mt-3 space-y-2 text-sm max-h-48 min-w-0 overflow-y-auto overflow-x-hidden">
+                        {Object.entries(lc.department).map(([k, v]) => (
+                          <div key={k} className="flex items-start justify-between gap-2">
+                            <span className="text-xs font-semibold text-gray-600 shrink-0">
+                              {formatKvLabel(k)}
+                            </span>
+                            <span className="text-xs text-gray-800 break-words text-right">
+                              {String(v)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {lc.commune && (
+                    <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-8 h-8 bg-[#0b4a59] text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">
+                            <Home size={16} />
+                          </div>
+                          <div className="min-w-0">
+                            <h5 className="font-semibold text-gray-900 truncate">
+                              Commune
+                            </h5>
+                            <p className="text-xs text-gray-500 truncate">
+                              Administrative
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm max-h-48 min-w-0 overflow-y-auto overflow-x-hidden">
+                        {Object.entries(lc.commune).map(([k, v]) => (
+                          <div key={k} className="flex items-start justify-between gap-2">
+                            <span className="text-xs font-semibold text-gray-600 shrink-0">
+                              {formatKvLabel(k)}
+                            </span>
+                            <span className="text-xs text-gray-800 break-words text-right">
+                              {String(v)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
-              ) : null}
-              <div className="flex min-w-0 flex-col gap-3 w-full overflow-x-hidden">
-                {lc.region && (
-                  <AdminBlock
-                    title="Region"
-                    icon={Landmark}
-                    accent="red"
-                    props={lc.region}
-                  />
-                )}
-                {lc.department && (
-                  <AdminBlock
-                    title="Department"
-                    icon={Building2}
-                    accent="orange"
-                    props={lc.department}
-                  />
-                )}
-                {lc.commune && (
-                  <AdminBlock
-                    title="Commune"
-                    icon={Home}
-                    accent="blue"
-                    props={lc.commune}
-                  />
+
+                {typeof lc.sampleLng === "number" && typeof lc.sampleLat === "number" && (
+                  <p className="mt-3 text-[10px] text-gray-400 font-mono">
+                    Sample point: {lc.sampleLat.toFixed(5)}, {lc.sampleLng.toFixed(5)} (polygon centroid)
+                  </p>
                 )}
               </div>
               {typeof lc.sampleLng === "number" &&
@@ -623,15 +718,7 @@ export function PolygonResultsPanel({
                 )}
             </div>
 
-      <div className="shrink-0 rounded-b-xl border-t border-gray-200 bg-gray-50 p-4">
-                <button
-          type="button"
-                    onClick={onClose}
-          className={savedPolyPillBtnOutline}
-                >
-                    Close Analysis
-                </button>
-            </div>
+      {/* Footer intentionally omitted (close button is in header) */}
         </div>
     );
 }

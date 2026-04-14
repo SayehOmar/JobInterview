@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { AreaUnit } from "@/services/areaFormat";
+import type { AreaUnit } from "@/services/format/areaFormat";
 
 interface AreaUnitState {
   areaUnit: AreaUnit;

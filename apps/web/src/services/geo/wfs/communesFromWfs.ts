@@ -95,3 +95,4 @@ export async function fetchCommuneCodesForDepartment(
   const rows = await fetchCommunesForDepartment(departementCode);
   return rows.map((r) => r.code);
 }
+

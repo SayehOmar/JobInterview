@@ -26,21 +26,25 @@ export function AnalysisDockBar({ items, onSelect }: AnalysisDockBarProps) {
         aria-label="Minimized analyses"
       >
         {items.map((item) => (
-          <button
+          <div
             key={item.id}
-            type="button"
-            role="tab"
-            title={item.name}
-            onClick={() => onSelect(item.id)}
-            className="group relative flex min-w-0 flex-col items-center px-1 transition-[transform] duration-200 ease-out will-change-transform hover:z-10 hover:scale-[1.14] active:scale-100"
+            className="group relative flex min-w-0 flex-col items-center"
           >
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/95 shadow-md ring-1 ring-black/10 transition-[box-shadow] duration-200 group-hover:shadow-lg group-hover:ring-[#0b4a59]/30">
-              <Trees size={20} className="text-[#0b4a59]" strokeWidth={2} />
-            </span>
-            <span className="mt-1 max-w-[5.5rem] truncate text-center text-[10px] font-medium leading-tight text-white drop-shadow-md">
+            {/* Only the circle is clickable */}
+            <button
+              type="button"
+              role="tab"
+              title={item.name}
+              onClick={() => onSelect(item.id)}
+              className="grid h-11 w-11 place-items-center rounded-full border border-white/20 bg-white/10 text-white/95 shadow-sm backdrop-blur transition-[transform,box-shadow,background-color,filter] duration-200 ease-out will-change-transform hover:z-10 hover:scale-[1.14] hover:bg-white/15 hover:shadow-md hover:drop-shadow-[0_10px_18px_rgba(0,0,0,0.35)] active:scale-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60"
+            >
+              <Trees size={20} className="text-emerald-200" strokeWidth={2} />
+            </button>
+
+            <span className="pointer-events-none mt-1 max-w-[10.5rem] truncate text-center text-[14px] font-semibold leading-tight text-white drop-shadow-md">
               {item.name}
             </span>
-          </button>
+          </div>
         ))}
       </div>
     </div>

@@ -106,3 +106,4 @@ export const DEPARTEMENT_NAMES: Record<string, string> = {
 export function labelDepartement(code: string): string {
   return DEPARTEMENT_NAMES[code] ?? `Département ${code}`;
 }
+

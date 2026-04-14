@@ -3,13 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { HexColorPicker } from "react-colorful";
-import { Layers, Eye, EyeOff, ChevronDown, ChevronRight } from "lucide-react";
-import { normalizeLayerColorToHex, WMSLayerConfig } from "@/services/wmsLayers";
+import { Layers, Eye, EyeOff } from "lucide-react";
+import {
+  normalizeLayerColorToHex,
+  WMSLayerConfig,
+} from "@/services/geo/wms/wmsLayers";
 import {
   mapDropdownHeaderClass,
   mapDropdownPanelClass,
 } from "./mapDropdownStyles";
-import { savedPolyPillBtnWideMuted } from "./savedPolygonsUi";
+import {
+  savedPolyRoundBtnMuted,
+  savedPolyRoundBtnTeal,
+} from "./savedPolygonsUi";
 
 const PICKER_W = 232;
 const PICKER_H = 268;
@@ -36,7 +42,6 @@ export function LayerControlPanel({
     left: number;
     top: number;
   } | null>(null);
-  const [layersListExpanded, setLayersListExpanded] = useState(true);
   const pickerRef = useRef<HTMLDivElement>(null);
 
   const isVisible = (layer: WMSLayerConfig) => {
@@ -51,11 +56,8 @@ export function LayerControlPanel({
     if (!open) {
       setColorPickerId(null);
       setPickerPos(null);
-      setLayersListExpanded(true);
     }
   }, [open]);
-
-  const visibleAtZoomCount = layers.filter(isVisible).length;
 
   useEffect(() => {
     if (!colorPickerId) return;
@@ -106,110 +108,74 @@ export function LayerControlPanel({
                 Visibility and legend colors
               </p>
             </div>
-            <button
-              type="button"
-              aria-expanded={layersListExpanded}
-              aria-label={
-                layersListExpanded ? "Collapse layer list" : "Expand layer list"
-              }
-              onClick={() => setLayersListExpanded((v) => !v)}
-              className="shrink-0 rounded-md p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
-            >
-              {layersListExpanded ? (
-                <ChevronDown size={18} strokeWidth={2} />
-              ) : (
-                <ChevronRight size={18} strokeWidth={2} />
-              )}
-            </button>
           </div>
-          {!layersListExpanded && (
-            <button
-              type="button"
-              onClick={() => setLayersListExpanded(true)}
-              className={`${savedPolyPillBtnWideMuted} mx-2 mb-2 min-h-[2.75rem]`}
-            >
-              {layers.length} layer{layers.length === 1 ? "" : "s"} ·{" "}
-              {visibleAtZoomCount} visible at this zoom — tap to expand
-            </button>
-          )}
-          {layersListExpanded && (
-            <>
-              <div className="border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-500">
-                Zoom: {currentZoom.toFixed(1)}
-              </div>
-              <div className="max-h-[min(50vh,280px)] overflow-y-auto overscroll-contain py-1">
-                {layers.map((layer) => {
-                  const hex = normalizeLayerColorToHex(
-                    layer.color || "#888888",
-                  );
-                  return (
-                    <div
-                      key={layer.id}
-                      className="relative flex items-center justify-between gap-1 border-b border-gray-100 px-2 py-1.5 last:border-0 hover:bg-gray-50"
+          <div className="border-b border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-500">
+            Zoom: {currentZoom.toFixed(1)}
+          </div>
+          <div className="max-h-[min(50vh,280px)] overflow-y-auto overscroll-contain py-1">
+            {layers.map((layer) => {
+              const hex = normalizeLayerColorToHex(layer.color || "#888888");
+              return (
+                <div
+                  key={layer.id}
+                  className="relative flex items-center justify-between gap-1 border-b border-gray-100 px-2 py-1.5 last:border-0 hover:bg-gray-50"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <button
+                      type="button"
+                      title="Change color"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const next = colorPickerId === layer.id ? null : layer.id;
+                        setColorPickerId(next);
+                        if (next) {
+                          const r = e.currentTarget.getBoundingClientRect();
+                          const gap = 8;
+                          // Panel opens to the **left** of the color dot, vertically centered.
+                          let left = r.left - PICKER_W - gap;
+                          left = Math.max(
+                            gap,
+                            Math.min(left, window.innerWidth - PICKER_W - gap),
+                          );
+                          let top = r.top + r.height / 2 - PICKER_H / 2;
+                          top = Math.max(
+                            gap,
+                            Math.min(top, window.innerHeight - PICKER_H - gap),
+                          );
+                          setPickerPos({ left, top });
+                        } else {
+                          setPickerPos(null);
+                        }
+                      }}
+                      className="relative h-5 w-5 shrink-0 rounded-full border border-gray-200 shadow-inner ring-2 ring-white transition hover:scale-110"
+                      style={{ backgroundColor: layer.color || hex }}
+                    />
+                    <span
+                      className={`truncate text-xs ${isVisible(layer) ? "text-gray-900" : "text-gray-400"}`}
                     >
-                      <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <button
-                          type="button"
-                          title="Change color"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const next =
-                              colorPickerId === layer.id ? null : layer.id;
-                            setColorPickerId(next);
-                            if (next) {
-                              const r = e.currentTarget.getBoundingClientRect();
-                              const gap = 8;
-                              // Panel opens to the **left** of the color dot, vertically centered.
-                              let left = r.left - PICKER_W - gap;
-                              left = Math.max(
-                                gap,
-                                Math.min(
-                                  left,
-                                  window.innerWidth - PICKER_W - gap,
-                                ),
-                              );
-                              let top = r.top + r.height / 2 - PICKER_H / 2;
-                              top = Math.max(
-                                gap,
-                                Math.min(
-                                  top,
-                                  window.innerHeight - PICKER_H - gap,
-                                ),
-                              );
-                              setPickerPos({ left, top });
-                            } else {
-                              setPickerPos(null);
-                            }
-                          }}
-                          className="relative h-5 w-5 shrink-0 rounded-full border border-gray-200 shadow-inner ring-2 ring-white transition hover:scale-110"
-                          style={{ backgroundColor: layer.color || hex }}
-                        />
-                        <span
-                          className={`truncate text-xs ${isVisible(layer) ? "text-gray-900" : "text-gray-400"}`}
-                        >
-                          {layer.name}
-                        </span>
-                        <span className="shrink-0 text-[8px] text-gray-400">
-                          z{layer.minZoom}-{layer.maxZoom}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => onToggleLayer(layer.id)}
-                        className={`shrink-0 rounded-md p-1 ${layer.visible ? "text-[#0b4a59]" : "text-gray-300"}`}
-                      >
-                        {layer.visible ? (
-                          <Eye size={12} />
-                        ) : (
-                          <EyeOff size={12} />
-                        )}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
+                      {layer.name}
+                    </span>
+                    <span className="shrink-0 text-[8px] text-gray-400">
+                      z{layer.minZoom}-{layer.maxZoom}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onToggleLayer(layer.id)}
+                    className={layer.visible ? savedPolyRoundBtnTeal : savedPolyRoundBtnMuted}
+                    aria-label={layer.visible ? "Hide layer" : "Show layer"}
+                    title={layer.visible ? "Hide layer" : "Show layer"}
+                  >
+                    {layer.visible ? (
+                      <Eye size={15} strokeWidth={2} />
+                    ) : (
+                      <EyeOff size={15} strokeWidth={2} />
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -37,6 +37,15 @@
 
 }
 
+/* Hide scrollbars but keep scrolling working */
+.no-scrollbar {
+    -ms-overflow-style: none; /* IE/Edge */
+    scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+}
+
 /*
  * Mapbox / MapLibre controls on `.forest-map` only.
  * Vertical stack, bottom-aligned with gear (`bottom-6` = 1.5rem). Fullscreen is added before

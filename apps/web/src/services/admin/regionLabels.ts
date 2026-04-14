@@ -53,3 +53,4 @@ export const REGION_NAV: Record<string, { lat: number; lng: number; zoom: number
   "04": { lat: -21.13, lng: 55.55, zoom: 9 },
   "06": { lat: -12.78, lng: 45.23, zoom: 10 },
 };
+

@@ -1,4 +1,4 @@
-import { REGION_NAV } from "@/services/regionLabels";
+import { REGION_NAV } from "@/services/admin/regionLabels";
 
 /**
  * Approximate préfecture fly-to for départements (sparse). Missing keys use
@@ -38,3 +38,4 @@ export function getDepartmentFlyTo(
     zoom: Math.min(r.zoom + 1.6, 11),
   };
 }
+

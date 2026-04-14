@@ -10,7 +10,7 @@ import {
   FileType,
   MapPinned,
 } from "lucide-react";
-import { FeatureInfoResponse } from "@/services/wmsFeatureInfo";
+import { FeatureInfoResponse } from "@/services/geo/wms/wmsFeatureInfo";
 
 interface FeatureQueryPopupProps {
   lng: number;
@@ -113,14 +113,14 @@ export function FeatureQueryPopup({
   return (
     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-96 max-h-[80vh] bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="p-3 bg-gradient-to-r from-slate-700 to-slate-800 text-white flex items-center justify-between shrink-0">
+      <div className="p-3 bg-[#0b4a59] text-white flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <MapPinned size={18} />
           <span className="font-semibold text-sm">Location Details</span>
         </div>
         <button
           onClick={onClose}
-          className="hover:bg-white/20 rounded p-1.5 transition-colors"
+          className="grid h-10 w-10 place-items-center rounded-full border border-white/20 bg-white/10 text-white/95 shadow-sm backdrop-blur transition hover:bg-white/15 hover:shadow-md active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60"
         >
           <X size={18} />
         </button>

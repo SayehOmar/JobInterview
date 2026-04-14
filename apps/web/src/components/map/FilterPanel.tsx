@@ -12,21 +12,21 @@ import {
   labelForRegionCode,
   REGION_NAV,
   FALLBACK_REGION_CODES,
-} from "@/services/regionLabels";
-import { getDepartmentFlyTo } from "@/services/frAdministrativeNav";
+} from "@/services/admin/regionLabels";
+import { getDepartmentFlyTo } from "@/services/admin/frAdministrativeNav";
 import {
   departementsForRegion,
   sortDepartementCodes,
-} from "@/services/frInseeAdmin";
-import { labelDepartement } from "@/services/frDepartmentNames";
+} from "@/services/admin/frInseeAdmin";
+import { labelDepartement } from "@/services/admin/frDepartmentNames";
 import {
   fetchCommunesForDepartment,
   type CommuneOption,
-} from "@/services/communesFromWfs";
+} from "@/services/geo/wfs/communesFromWfs";
 import {
   fetchCommuneBounds,
   type LngLatBounds,
-} from "@/services/communeBoundsFromWfs";
+} from "@/services/geo/wfs/communeBoundsFromWfs";
 import {
   LocationCombobox,
   type ComboboxOption,
@@ -228,7 +228,8 @@ export function FilterPanel({
         </div>
       </div>
 
-      <div className="max-h-[38vh] min-h-0 space-y-4 overflow-y-auto overflow-x-hidden overscroll-contain p-3 sm:max-h-[min(38vh,320px)]">
+      {/* Content auto-sizes so Region/Dept/Commune + active filters never force scrollbars */}
+      <div className="min-h-0 space-y-4 overflow-x-hidden p-3">
         {hasFilters && (
           <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, X } from "lucide-react";
-import { estimatedComboboxMinWidthPx } from "@/services/comboboxContentWidth";
+import { estimatedComboboxMinWidthPx } from "@/services/format/comboboxContentWidth";
 
 function norm(s: string) {
   return s

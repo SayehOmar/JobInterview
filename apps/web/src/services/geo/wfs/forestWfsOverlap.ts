@@ -1,5 +1,5 @@
 import * as turf from "@turf/turf";
-import { intersectionAreaHectares } from "@/services/forestPolygonIntersection";
+import { intersectionAreaHectares } from "@/services/geo/geometry/forestPolygonIntersection";
 
 const GEOSERVER_URL = "/geoserver";
 const FOREST_TYPENAME = "prod:forest";
@@ -56,3 +56,4 @@ export async function sumForestOverlapFromWfs(
   }
   return total;
 }
+

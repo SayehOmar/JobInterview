@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
@@ -9,27 +9,27 @@ import { useMapStore } from "@/store/mapStore";
 import { useAuthStore } from "@/store/authStore";
 import { UPDATE_MAP_STATE } from "@/graphql/auth";
 import { GET_MY_POLYGONS, SAVE_POLYGON_MUTATION } from "@/graphql/polygons";
-import { queryAllLayers } from "@/services/wmsFeatureInfo";
+import { queryAllLayers } from "@/services/geo/wms/wmsFeatureInfo";
 import {
   buildLocationContextFromDrawnGeometry,
   type SavedLocationContext,
-} from "@/services/locationContextSnapshot";
+} from "@/services/geo/locationContextSnapshot";
 import {
   WMS_LAYERS,
   getWMSTileUrl,
   WMSLayerConfig,
-} from "@/services/wmsLayers";
-import { buildWmsCqlForLayer } from "@/services/wmsLayerCql";
+} from "@/services/geo/wms/wmsLayers";
+import { buildWmsCqlForLayer } from "@/services/geo/wms/wmsLayerCql";
 import {
   mergeLayersWithStoredColors,
   saveLayerColorOverrides,
-} from "@/services/wmsLayerColorsStorage";
+} from "@/services/geo/wms/wmsLayerColorsStorage";
 import {
   applyRasterTintToMapLayer,
   getRasterTintPaintProps,
-} from "@/services/wmsRasterTint";
+} from "@/services/geo/wms/wmsRasterTint";
 import { createMapRuntime, MapStyleKey } from "@/services/map/mapProviders";
-import { flyMapToPolygonGeometry } from "@/services/mapFlyToPolygon";
+import { flyMapToPolygonGeometry } from "@/services/map/mapFlyToPolygon";
 import { useAnalysisPanelDrag } from "@/components/map/useAnalysisPanelDrag";
 import { AnalysisDockBar } from "@/components/map/AnalysisDockBar";
 import {
@@ -46,7 +46,15 @@ import { UserMenuDropdown } from "./UserMenuDropdown";
 import { FeatureQueryPopup } from "./FeatureQueryPopup";
 import { MapFloatingControls } from "./MapFloatingControls";
 
-import { Map as MapIcon, Satellite, Mountain, Sun, Moon } from "lucide-react";
+import {
+  Map as MapIcon,
+  Satellite,
+  Mountain,
+  Sun,
+  Moon,
+  TreePine,
+  Library,
+} from "lucide-react";
 
 // Base layer configurations
 const BASE_LAYERS = {
@@ -104,6 +112,107 @@ export function ForestMap() {
   const topRightStackRef = useRef<HTMLDivElement>(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [layersMenuOpen, setLayersMenuOpen] = useState(false);
+  const [exploreOpen, setExploreOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [analysisSize, setAnalysisSize] = useState<{
+    w: number;
+    h: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("forest-bd-analysis-size");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { w?: unknown; h?: unknown };
+      const w = Number(parsed.w);
+      const h = Number(parsed.h);
+      if (Number.isFinite(w) && Number.isFinite(h) && w > 320 && h > 260) {
+        setAnalysisSize({ w, h });
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const analysisResizeRef = useRef<{
+    startX: number;
+    startY: number;
+    startW: number;
+    startH: number;
+  } | null>(null);
+
+  const beginResizeAnalysis = useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const vpW = window.innerWidth;
+      const vpH = window.innerHeight;
+      const cur = analysisSize ?? {
+        w: Math.min(896, Math.floor(vpW * 0.92)),
+        h: Math.min(720, Math.floor(vpH * 0.78)),
+      };
+      analysisResizeRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        startW: cur.w,
+        startH: cur.h,
+      };
+
+      const onMove = (ev: PointerEvent) => {
+        const st = analysisResizeRef.current;
+        if (!st) return;
+        const dx = ev.clientX - st.startX;
+        const dy = ev.clientY - st.startY;
+
+        const minW = 520;
+        const minH = 520;
+        const maxW = Math.max(minW, Math.floor(window.innerWidth * 0.96));
+        const maxH = Math.max(minH, Math.floor(window.innerHeight * 0.86));
+
+        const next = {
+          w: Math.max(minW, Math.min(maxW, Math.round(st.startW + dx))),
+          h: Math.max(minH, Math.min(maxH, Math.round(st.startH + dy))),
+        };
+        setAnalysisSize(next);
+        try {
+          localStorage.setItem("forest-bd-analysis-size", JSON.stringify(next));
+        } catch {
+          /* ignore */
+        }
+      };
+
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        analysisResizeRef.current = null;
+      };
+
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+    },
+    [analysisSize],
+  );
+
+  const analysisContainerStyle = useMemo(() => {
+    if (typeof window === "undefined") return {};
+    const vpW = window.innerWidth;
+    const vpH = window.innerHeight;
+    const fallback = {
+      w: Math.min(896, Math.floor(vpW * 0.92)),
+      h: Math.min(720, Math.floor(vpH * 0.78)),
+    };
+    const sz = analysisSize ?? fallback;
+    return {
+      width: `${sz.w}px`,
+      height: `${sz.h}px`,
+      maxWidth: "96vw",
+      maxHeight: "86vh",
+    } as const;
+  }, [analysisSize]);
   const map = useRef<any>(null);
   const analysisResultRef = useRef<any>(null);
   const draw = useRef<any>(null);
@@ -725,18 +834,61 @@ export function ForestMap() {
         onToggleCadastre={() => setShowCadastre(!showCadastre)}
       />
 
-      {/* Left stack: filters + saved polygons (scroll only inside cards) */}
-      <div className="pointer-events-none absolute left-0 top-0 z-20 flex h-dvh w-[min(28rem,calc(100vw-0.75rem))] flex-col gap-2 overflow-hidden pl-2 pt-3 sm:left-3 sm:pl-0 sm:pt-4">
-        <div className="pointer-events-auto flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
-          <FilterPanel
-            onRegionSelect={handleRegionNavigate}
-            onDepartmentSelect={handleDepartmentNavigate}
-            onCommuneSelect={handleCommuneNavigate}
-          />
-          <SavedPolygonsList
-            showEmptyState={hasCompletedPolygonDraw}
-            onSelectPolygon={(p) => openPolygonAnalysis(p)}
-          />
+      {/* Left compact dock: Explore + Library (saves space like account button) */}
+      <div className="pointer-events-none absolute left-0 top-0 z-20 flex h-dvh w-[min(28rem,calc(100vw-0.75rem))] flex-col overflow-visible pl-2 pt-3 sm:left-3 sm:pl-0 sm:pt-4">
+        <div className="pointer-events-auto flex items-start gap-2">
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              aria-expanded={exploreOpen}
+              aria-label="Explore area"
+              onClick={() => {
+                setExploreOpen((v) => !v);
+                setLibraryOpen(false);
+              }}
+              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white shadow-md transition hover:bg-gray-50 active:scale-[0.98] ${
+                exploreOpen ? "ring-2 ring-[#0b4a59] ring-offset-2" : ""
+              }`}
+            >
+              <TreePine size={22} className="text-[#0b4a59]" strokeWidth={2} />
+            </button>
+
+            <button
+              type="button"
+              aria-expanded={libraryOpen}
+              aria-label="Saved polygons"
+              onClick={() => {
+                setLibraryOpen((v) => !v);
+                setExploreOpen(false);
+              }}
+              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white shadow-md transition hover:bg-gray-50 active:scale-[0.98] ${
+                libraryOpen ? "ring-2 ring-[#0b4a59] ring-offset-2" : ""
+              }`}
+            >
+              <Library size={22} className="text-[#0b4a59]" strokeWidth={2} />
+            </button>
+          </div>
+
+          {exploreOpen && (
+            <div className="w-[min(26rem,calc(100vw-4.5rem))]">
+              <FilterPanel
+                onRegionSelect={handleRegionNavigate}
+                onDepartmentSelect={handleDepartmentNavigate}
+                onCommuneSelect={handleCommuneNavigate}
+              />
+            </div>
+          )}
+
+          {libraryOpen && (
+            <div className="w-[min(28rem,calc(100vw-4.5rem))]">
+              <div className="max-h-[calc(100dvh-6rem)] overflow-y-auto no-scrollbar">
+                <SavedPolygonsList
+                  showEmptyState={hasCompletedPolygonDraw}
+                  onSelectPolygon={(p) => openPolygonAnalysis(p)}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -764,25 +916,48 @@ export function ForestMap() {
       {showAnalysisPanel && analysisResult && (
         <div className="pointer-events-none fixed inset-0 z-50">
           <div
-            className={`pointer-events-auto fixed left-1/2 z-50 max-h-[calc(100vh-4rem)] w-[min(96vw,56rem)] max-w-[min(96vw,56rem)] ${
+            className={`pointer-events-auto fixed left-1/2 z-50 ${
               dockedAnalyses.length > 0 ? "top-28" : "top-20"
             }`}
             style={{
+              ...analysisContainerStyle,
               transform: `translate(calc(-50% + ${analysisDrag.offset.x}px), ${analysisDrag.offset.y}px)`,
             }}
           >
-            <PolygonResultsPanel
-              key={analysisResult.id}
-              result={analysisResult}
-              mapRef={map}
-              onClose={closeAnalysis}
-              onMinimize={minimizeAnalysis}
-              headerDragProps={{
-                onPointerDown: analysisDrag.onPointerDown,
-                className:
-                  "cursor-grab active:cursor-grabbing select-none touch-none",
-              }}
-            />
+            <div className="relative h-full w-full">
+              <PolygonResultsPanel
+                key={analysisResult.id}
+                result={analysisResult}
+                mapRef={map}
+                onClose={closeAnalysis}
+                onMinimize={minimizeAnalysis}
+                headerDragProps={{
+                  onPointerDown: analysisDrag.onPointerDown,
+                  className:
+                    "cursor-grab active:cursor-grabbing select-none touch-none",
+                }}
+              />
+
+              {/* Resize handle (bottom-right) */}
+              <button
+                type="button"
+                aria-label="Resize analysis panel"
+                onPointerDown={beginResizeAnalysis}
+                className="absolute bottom-0 right-0 z-30 h-10 w-10 cursor-nwse-resize rounded-bl-2xl border-l border-t border-slate-200/60 bg-white/70 text-slate-500 shadow-sm backdrop-blur transition hover:bg-white/85 hover:text-slate-700"
+              >
+                <span className="sr-only">Resize</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  className="absolute bottom-2 right-2 h-4 w-4"
+                  aria-hidden
+                >
+                  <path
+                    d="M9 21h12v-2H9v2zm4-4h8v-2h-8v2zm4-4h4v-2h-4v2z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       )}

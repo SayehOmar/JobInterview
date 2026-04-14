@@ -23,3 +23,4 @@ export function formatArea(ha: number, unit: AreaUnit): string {
   const rounded = Math.round(m2);
   return `${rounded.toLocaleString()} m²`;
 }
+

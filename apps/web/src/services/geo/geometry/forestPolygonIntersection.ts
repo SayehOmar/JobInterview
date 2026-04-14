@@ -1,6 +1,6 @@
 import * as turf from "@turf/turf";
 import type { Feature, MultiPolygon, Polygon } from "geojson";
-import type { FeatureInfoResponse } from "@/services/wmsFeatureInfo";
+import type { FeatureInfoResponse } from "@/services/geo/wms/wmsFeatureInfo";
 
 function asPolyFeature(
   g: GeoJSON.Geometry,
@@ -47,3 +47,4 @@ export function intersectionAreaHectares(
     return null;
   }
 }
+
