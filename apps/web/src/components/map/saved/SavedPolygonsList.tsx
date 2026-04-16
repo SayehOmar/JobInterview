@@ -46,6 +46,7 @@ import {
   GripVertical,
   ChevronRight,
   ChevronDown,
+  GitCompare,
 } from "lucide-react";
 import {
   savedPolyPillBtn,
@@ -82,6 +83,8 @@ type FolderRow = {
 interface SavedPolygonsListProps {
   onSelectPolygon: (polygon: PolygonRow) => void;
   onHighlightPolygon?: (polygon: PolygonRow) => void;
+  onComparePolygon?: (polygon: PolygonRow) => void;
+  comparePendingPolygonId?: string | null;
   selectedPolygonId?: string | null;
   showEmptyState?: boolean;
 }
@@ -148,10 +151,12 @@ function PolygonBody({
   onStartRename,
   onSelect,
   onShowMap,
+  onCompare,
   onDelete,
   inputRef,
   detailsExpanded,
   onToggleDetails,
+  comparePending = false,
 }: {
   polygon: PolygonRow;
   selected: boolean;
@@ -163,11 +168,13 @@ function PolygonBody({
   onStartRename: () => void;
   onSelect: () => void;
   onShowMap: (e: React.MouseEvent) => void;
+  onCompare?: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
   inputRef?: React.RefObject<HTMLInputElement | null>;
   /** When false, only the layer name is shown (like a collapsed folder). */
   detailsExpanded: boolean;
   onToggleDetails: () => void;
+  comparePending?: boolean;
 }) {
   const areaUnit = useAreaUnitStore((s) => s.areaUnit);
   const forestMetrics = getDisplayForestCoverForPolygon(polygon);
@@ -275,6 +282,17 @@ function PolygonBody({
         >
           <Eye size={15} strokeWidth={2} />
         </button>
+        {onCompare && (
+          <button
+            type="button"
+            onClick={(e) => onCompare(e)}
+            className={comparePending ? savedPolyRoundBtnMuted : savedPolyRoundBtnTeal}
+            title={comparePending ? "Select another polygon to compare" : "Compare"}
+            aria-label="Compare polygons"
+          >
+            <GitCompare size={15} strokeWidth={2} />
+          </button>
+        )}
         <button
           type="button"
           onClick={(e) => onDelete(e)}
@@ -603,6 +621,8 @@ function SortableFolderBlock({
 export function SavedPolygonsList({
   onSelectPolygon,
   onHighlightPolygon,
+  onComparePolygon,
+  comparePendingPolygonId,
   selectedPolygonId,
   showEmptyState = false,
 }: SavedPolygonsListProps) {
@@ -1042,11 +1062,20 @@ export function SavedPolygonsList({
                         onStartRename={() => startPolygonRename(polygon)}
                         onSelect={() => onSelectPolygon(polygon)}
                         onShowMap={(e) => handleShowOnMap(polygon, e)}
+                        onCompare={
+                          onComparePolygon
+                            ? (e) => {
+                                e.stopPropagation();
+                                onComparePolygon(polygon);
+                              }
+                            : undefined
+                        }
                         onDelete={(e) => handleDelete(polygon.id, e)}
                         inputRef={polyInputRef}
                         detailsExpanded={
                           layerDetailsExpanded[polygon.id] === true
                         }
+                        comparePending={comparePendingPolygonId === polygon.id}
                         onToggleDetails={() =>
                           setLayerDetailsExpanded((prev) => ({
                             ...prev,
@@ -1071,11 +1100,20 @@ export function SavedPolygonsList({
                   onStartRename={() => startPolygonRename(entry.p)}
                   onSelect={() => onSelectPolygon(entry.p)}
                   onShowMap={(e) => handleShowOnMap(entry.p, e)}
+                  onCompare={
+                    onComparePolygon
+                      ? (e) => {
+                          e.stopPropagation();
+                          onComparePolygon(entry.p);
+                        }
+                      : undefined
+                  }
                   onDelete={(e) => handleDelete(entry.p.id, e)}
                   inputRef={polyInputRef}
                   detailsExpanded={
                     layerDetailsExpanded[entry.p.id] === true
                   }
+                  comparePending={comparePendingPolygonId === entry.p.id}
                   onToggleDetails={() =>
                     setLayerDetailsExpanded((prev) => ({
                       ...prev,

@@ -41,13 +41,21 @@ import {
   BD_FORET_V2_TFV_LABELS,
   type BdForetV2TfvColorMap,
   getBdForetV2TfvColor,
+  isBdForetV2TfvVisible,
   loadBdForetV2TfvColorOverrides,
+  loadBdForetV2TfvVisibility,
   saveBdForetV2TfvColorOverrides,
+  saveBdForetV2TfvVisibility,
+  type BdForetV2TfvVisibilityMap,
 } from "@/services/geo/bdForetV2/bdForetV2TfvColors";
 
 import { FilterPanel } from "./filters/FilterPanel";
 import { SavePolygonModal } from "./modals/SavePolygonModal";
 import { PolygonResultsPanel } from "./analysis/PolygonResultsPanel";
+import {
+  ComparisonResultsPanel,
+  type ComparisonAnalysisResult,
+} from "./analysis/ComparisonResultsPanel";
 import { SavedPolygonsList } from "./saved/SavedPolygonsList";
 import { LayerControlPanel } from "./layers/LayerControlPanel";
 import { UserMenuDropdown } from "./menus/UserMenuDropdown";
@@ -98,11 +106,14 @@ export function ForestMap() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [showAnalysisPanel, setShowAnalysisPanel] = useState(false);
+  const [comparePending, setComparePending] = useState<any | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(5);
   const [wmsLayers, setWmsLayers] = useState<WMSLayerConfig[]>(WMS_LAYERS);
   const [bdForetV2TfvColors, setBdForetV2TfvColors] =
     useState<BdForetV2TfvColorMap>({});
+  const [bdForetV2TfvVisibility, setBdForetV2TfvVisibility] =
+    useState<BdForetV2TfvVisibilityMap>({});
   const [isDrawing, setIsDrawing] = useState(false);
   /** After user completes a polygon on the map, the saved-polygons empty card may appear. */
   const [hasCompletedPolygonDraw, setHasCompletedPolygonDraw] = useState(false);
@@ -131,6 +142,7 @@ export function ForestMap() {
 
   useEffect(() => {
     setBdForetV2TfvColors(loadBdForetV2TfvColorOverrides());
+    setBdForetV2TfvVisibility(loadBdForetV2TfvVisibility());
   }, []);
 
   useEffect(() => {
@@ -335,6 +347,25 @@ export function ForestMap() {
     }
   }, []);
 
+  const openComparisonAnalysis = useCallback((result: ComparisonAnalysisResult) => {
+    if (!result) return;
+    setDockedAnalyses((d) => d.filter((x) => x.id !== result.id));
+    setAnalysisResult(result);
+    setShowAnalysisPanel(true);
+  }, []);
+
+  const openAnyAnalysis = useCallback(
+    (result: any) => {
+      if (!result) return;
+      if ((result as any)?.kind === "comparison") {
+        openComparisonAnalysis(result as ComparisonAnalysisResult);
+      } else {
+        openPolygonAnalysis(result);
+      }
+    },
+    [openComparisonAnalysis, openPolygonAnalysis],
+  );
+
   const minimizeAnalysis = useCallback(() => {
     const r = analysisResultRef.current;
     if (!r) return;
@@ -359,12 +390,47 @@ export function ForestMap() {
       setDockedAnalyses((d) => {
         const item = d.find((x) => x.id === id);
         if (item) {
-          requestAnimationFrame(() => openPolygonAnalysis(item.result));
+          requestAnimationFrame(() => openAnyAnalysis(item.result));
         }
         return d;
       });
     },
-    [openPolygonAnalysis],
+    [openAnyAnalysis],
+  );
+
+  const beginCompare = useCallback(
+    (p: any) => {
+      if (!p) return;
+      setComparePending((cur: any | null) => {
+        if (cur?.id === p.id) return null;
+        if (!cur) return p;
+
+        // Open comparison between `cur` and `p`.
+        const existing = analysisResultRef.current;
+        if (existing) {
+          // Requirement: minimize currently opened analysis when comparison opens.
+          setDockedAnalyses((d) =>
+            pushDockItem(d, { id: existing.id, name: existing.name, result: existing }),
+          );
+          setShowAnalysisPanel(false);
+          setAnalysisResult(null);
+        }
+
+        const now = new Date().toISOString();
+        const comparison: ComparisonAnalysisResult = {
+          kind: "comparison",
+          id: `compare:${cur.id}:${p.id}:${Date.now()}`,
+          name: `Compare: ${cur.name} vs ${p.name}`,
+          status: "completed",
+          createdAt: now,
+          a: cur,
+          b: p,
+        };
+        openComparisonAnalysis(comparison);
+        return null;
+      });
+    },
+    [openComparisonAnalysis],
   );
 
   useEffect(() => {
@@ -722,9 +788,27 @@ export function ForestMap() {
         if (!isBdForetV2) return layer.color ?? "#16a34a";
         const pairs: any[] = [];
         for (const lbl of BD_FORET_V2_TFV_LABELS) {
-          pairs.push(lbl, getBdForetV2TfvColor(lbl, bdForetV2TfvColors));
+          pairs.push(
+            lbl,
+            isBdForetV2TfvVisible(lbl, bdForetV2TfvVisibility)
+              ? getBdForetV2TfvColor(lbl, bdForetV2TfvColors)
+              : "rgba(0,0,0,0)",
+          );
         }
         return ["match", ["get", "tfv"], ...pairs, "#888888"];
+      };
+      const buildLineOpacity = () => {
+        if (!isBdForetV2) return Math.min(1, layer.opacity + 0.25);
+        const pairs: any[] = [];
+        for (const lbl of BD_FORET_V2_TFV_LABELS) {
+          pairs.push(
+            lbl,
+            isBdForetV2TfvVisible(lbl, bdForetV2TfvVisibility)
+              ? Math.min(1, layer.opacity + 0.25)
+              : 0,
+          );
+        }
+        return ["match", ["get", "tfv"], ...pairs, 0];
       };
 
       if (!mapInstance.getSource(srcId)) {
@@ -746,7 +830,7 @@ export function ForestMap() {
           paint: {
             "line-color": "#0b4a59",
             "line-width": 1.2,
-            "line-opacity": Math.min(1, layer.opacity + 0.25),
+            "line-opacity": buildLineOpacity(),
           },
           layout: { visibility: "visible" },
         });
@@ -759,16 +843,12 @@ export function ForestMap() {
         }
         if (mapInstance.getLayer(lineId)) {
           mapInstance.setLayoutProperty(lineId, "visibility", "visible");
-          mapInstance.setPaintProperty(
-            lineId,
-            "line-opacity",
-            Math.min(1, layer.opacity + 0.25),
-          );
+          mapInstance.setPaintProperty(lineId, "line-opacity", buildLineOpacity());
           mapInstance.setPaintProperty(lineId, "line-color", "#0b4a59");
         }
       }
     },
-    [currentZoom, bdForetV2TfvColors],
+    [currentZoom, bdForetV2TfvColors, bdForetV2TfvVisibility],
   );
 
   useEffect(() => {
@@ -873,13 +953,42 @@ export function ForestMap() {
     const layer = wmsLayersRef.current.find((l) => l.id === "bd_foret_v2_polygons");
     if (!layer || layer.wmsBackend !== "ign_wfs") return;
     const fillId = `wfs-fill-${layer.id}`;
-    if (!m.getLayer(fillId)) return;
     const pairs: any[] = [];
     for (const lbl of BD_FORET_V2_TFV_LABELS) {
-      pairs.push(lbl, getBdForetV2TfvColor(lbl, bdForetV2TfvColors));
+      pairs.push(
+        lbl,
+        isBdForetV2TfvVisible(lbl, bdForetV2TfvVisibility)
+          ? getBdForetV2TfvColor(lbl, bdForetV2TfvColors)
+          : "rgba(0,0,0,0)",
+      );
     }
-    m.setPaintProperty(fillId, "fill-color", ["match", ["get", "tfv"], ...pairs, "#888888"]);
-  }, [bdForetV2TfvColors, mapLoaded]);
+    if (m.getLayer(fillId)) {
+      m.setPaintProperty(fillId, "fill-color", [
+        "match",
+        ["get", "tfv"],
+        ...pairs,
+        "#888888",
+      ]);
+    }
+    const linePairs: any[] = [];
+    for (const lbl of BD_FORET_V2_TFV_LABELS) {
+      linePairs.push(
+        lbl,
+        isBdForetV2TfvVisible(lbl, bdForetV2TfvVisibility)
+          ? Math.min(1, layer.opacity + 0.25)
+          : 0,
+      );
+    }
+    const lineId = `wfs-line-${layer.id}`;
+    if (m.getLayer(lineId)) {
+      m.setPaintProperty(lineId, "line-opacity", [
+        "match",
+        ["get", "tfv"],
+        ...linePairs,
+        0,
+      ]);
+    }
+  }, [bdForetV2TfvColors, bdForetV2TfvVisibility, mapLoaded]);
 
   // Start drawing mode (same MapboxDraw mode as the old polygon control)
   const handleDrawStart = () => {
@@ -1101,6 +1210,14 @@ export function ForestMap() {
               return next;
             });
           }}
+        bdForetV2TfvVisibility={bdForetV2TfvVisibility}
+        onBdForetV2TfvVisibilityChange={(tfv, visible) => {
+          setBdForetV2TfvVisibility((prev) => {
+            const next = { ...prev, [tfv]: visible };
+            saveBdForetV2TfvVisibility(next);
+            return next;
+          });
+        }}
           currentZoom={currentZoom}
           open={layersMenuOpen}
           onOpenChange={(v) => {
@@ -1172,7 +1289,12 @@ export function ForestMap() {
               <div className="max-h-[calc(100dvh-6rem)] overflow-y-auto no-scrollbar">
                 <SavedPolygonsList
                   showEmptyState={hasCompletedPolygonDraw}
-                  onSelectPolygon={(p) => openPolygonAnalysis(p)}
+                  onSelectPolygon={(p) => {
+                    setComparePending(null);
+                    openPolygonAnalysis(p);
+                  }}
+                  onComparePolygon={(p) => beginCompare(p)}
+                  comparePendingPolygonId={comparePending?.id ?? null}
                 />
               </div>
             </div>
@@ -1215,18 +1337,33 @@ export function ForestMap() {
             }}
           >
             <div className="relative h-full w-full">
-              <PolygonResultsPanel
-                key={analysisResult.id}
-                result={analysisResult}
-                mapRef={map}
-                onClose={closeAnalysis}
-                onMinimize={minimizeAnalysis}
-                headerDragProps={{
-                  onPointerDown: analysisDrag.onPointerDown,
-                  className:
-                    "cursor-grab active:cursor-grabbing select-none touch-none",
-                }}
-              />
+              {(analysisResult as any)?.kind === "comparison" ? (
+                <ComparisonResultsPanel
+                  key={analysisResult.id}
+                  result={analysisResult as ComparisonAnalysisResult}
+                  mapRef={map}
+                  onClose={closeAnalysis}
+                  onMinimize={minimizeAnalysis}
+                  headerDragProps={{
+                    onPointerDown: analysisDrag.onPointerDown,
+                    className:
+                      "cursor-grab active:cursor-grabbing select-none touch-none",
+                  }}
+                />
+              ) : (
+                <PolygonResultsPanel
+                  key={analysisResult.id}
+                  result={analysisResult}
+                  mapRef={map}
+                  onClose={closeAnalysis}
+                  onMinimize={minimizeAnalysis}
+                  headerDragProps={{
+                    onPointerDown: analysisDrag.onPointerDown,
+                    className:
+                      "cursor-grab active:cursor-grabbing select-none touch-none",
+                  }}
+                />
+              )}
 
               {/* Resize handle (bottom-right) */}
               <button

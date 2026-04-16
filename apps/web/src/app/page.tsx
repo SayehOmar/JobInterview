@@ -15,9 +15,12 @@ export default function Home() {
   const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('token');
 
   // Check auth status on mount
-  const { data: meData, loading: meLoading, error: meError } = useQuery(ME_QUERY, {
+  const { data: meData, loading: meLoading, error: meError } = useQuery<{ me?: any }>(
+    ME_QUERY,
+    {
     skip: !hasToken,
-  });
+    },
+  );
 
   useEffect(() => {
     if (!hasToken) return;

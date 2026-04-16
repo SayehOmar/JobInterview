@@ -1,4 +1,5 @@
 import type { SavedLocationContext } from "@/services/geo/locationContextSnapshot";
+import type { BdForetV2ClassOverlap } from "@/services/geo/wfs/forestWfsOverlap";
 
 export type SpeciesRow = { species: string; areaHectares: number; percentage: number };
 
@@ -21,6 +22,7 @@ export function getDisplayForestCoverForPolygon(p: {
     p.areaHectares,
     parcelHa,
     lc?.forestIntersectionHectares,
+    lc?.forestClassBreakdown,
   );
 }
 
@@ -79,6 +81,23 @@ function splitEssence(essence: string): string[] {
  * Prefer stored analysis; if empty, derive one row per species token from BD Forêt ESSENCE
  * and optional parcel surface / polygon area for ha & %.
  */
+function speciesRowsFromBdForetV2Breakdown(
+  breakdown: BdForetV2ClassOverlap[],
+): SpeciesRow[] {
+  const totalForestHa = breakdown.reduce((s, b) => s + b.overlapHectares, 0);
+  if (!(totalForestHa > 0)) return [];
+  return breakdown.map((b) => {
+    const labelParts = [b.tfv];
+    if (b.code_tfv && b.code_tfv !== b.tfv) labelParts.push(`(${b.code_tfv})`);
+    const species = labelParts.join(" ");
+    return {
+      species,
+      areaHectares: b.overlapHectares,
+      percentage: (b.overlapHectares / totalForestHa) * 100,
+    };
+  });
+}
+
 export function buildEffectiveSpeciesRows(
   analysisSpecies: SpeciesRow[] | undefined | null,
   forest: Record<string, unknown> | null | undefined,
@@ -86,9 +105,15 @@ export function buildEffectiveSpeciesRows(
   parcelSurfaceHa: number | null,
   /** Prefer overlap area with BD Forêt parcel (ha) when available */
   forestIntersectionHectares: number | null | undefined,
+  /** Per-TFV overlap from WFS — all classes under the polygon */
+  forestClassBreakdown?: BdForetV2ClassOverlap[] | null,
 ): SpeciesRow[] {
   const fromAnalysis = [...(analysisSpecies || [])].filter((r) => r.species);
   if (fromAnalysis.length > 0) return fromAnalysis;
+
+  if (forestClassBreakdown && forestClassBreakdown.length > 0) {
+    return speciesRowsFromBdForetV2Breakdown(forestClassBreakdown);
+  }
 
   const baseHa = resolveBaseHaForSpecies(
     polygonAreaHa,
@@ -151,10 +176,16 @@ export function buildEffectiveForestCover(
   parcelSurfaceHa: number | null,
   /** True overlap (ha) between user polygon and BD Forêt parcel geometry */
   forestIntersectionHectares: number | null | undefined,
+  forestClassBreakdown?: BdForetV2ClassOverlap[] | null,
 ): { totalForestHa: number; coveragePct: number; plotCount: number } {
   const aForest = analysis?.totalForestArea;
   const aCov = analysis?.coveragePercentage;
   const aPlots = analysis?.plotCount;
+
+  const plotCountFromBreakdown =
+    forestClassBreakdown && forestClassBreakdown.length > 0
+      ? forestClassBreakdown.reduce((s, b) => s + b.featureCount, 0)
+      : null;
 
   if (
     forestIntersectionHectares != null &&
@@ -166,7 +197,9 @@ export function buildEffectiveForestCover(
     return {
       totalForestHa: coverHa,
       coveragePct: Math.min(100, (coverHa / polygonAreaHa) * 100),
-      plotCount: (forest as any)?.ID || (forest as any)?.id ? 1 : 0,
+      plotCount:
+        plotCountFromBreakdown ??
+        ((forest as any)?.ID || (forest as any)?.id ? 1 : 0),
     };
   }
 
@@ -217,6 +250,7 @@ export function mergeLocationContext(
       department: fresh.department ?? saved.department,
       commune: fresh.commune ?? saved.commune,
       forestIntersectionHectares: fresh.forestIntersectionHectares ?? saved.forestIntersectionHectares,
+      forestClassBreakdown: fresh.forestClassBreakdown ?? saved.forestClassBreakdown,
     };
   }
   return fresh ?? saved ?? null;

@@ -4,7 +4,7 @@ import {
   useCallback,
   useEffect,
   useState,
-  type PointerEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 
 /**
@@ -17,12 +17,12 @@ export function useAnalysisPanelDrag(resetKey?: string) {
     setOffset({ x: 0, y: 0 });
   }, [resetKey]);
 
-  const onPointerDown = useCallback((e: PointerEvent<HTMLDivElement>) => {
+  const onPointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     e.preventDefault();
     const startX = e.clientX - offset.x;
     const startY = e.clientY - offset.y;
-    const onMove = (ev: PointerEvent) => {
+    const onMove = (ev: globalThis.PointerEvent) => {
       setOffset({
         x: ev.clientX - startX,
         y: ev.clientY - startY,

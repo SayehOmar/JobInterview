@@ -18,7 +18,6 @@ import {
   Landmark,
   Building2,
   Home,
-  FileType,
   Loader2,
   Minimize2,
 } from "lucide-react";
@@ -200,26 +199,10 @@ export function PolygonResultsPanel({
 
   const lc = resolvedLc;
   const forestProps = (lc?.forest ?? null) as Record<string, unknown> | null;
-  const forestId = forestProps?.ID ?? forestProps?.id;
-  const forestCode = forestProps?.CODE_TFV ?? forestProps?.code_tfv;
-  const forestType =
-    forestProps?.TFV ?? forestProps?.tfv ?? forestProps?.type_foret;
-  const forestCategory = forestProps?.TFV_G11 ?? forestProps?.tfv_g11;
-  const forestSpecies =
-    forestProps?.ESSENCE ?? forestProps?.essence ?? forestProps?.essences;
-  const forestName = (forestProps?.name ?? forestProps?.nom) as
-    | string
-    | undefined;
-  const forestLayer = forestProps?.layer as string | undefined;
-  const hasForestSnapshot =
-    forestProps &&
-    (forestId ||
-      forestType ||
-      forestSpecies ||
-      forestCode ||
-      forestCategory);
 
   const parcelSurfaceHa = parseForestSurfaceHectares(forestProps);
+  const forestClassBreakdown = lc?.forestClassBreakdown;
+  const hasClassBreakdown = (forestClassBreakdown?.length ?? 0) > 0;
   const forestIntersectionHectares =
     lc?.forestIntersectionHectares != null &&
     Number.isFinite(lc.forestIntersectionHectares)
@@ -240,6 +223,7 @@ export function PolygonResultsPanel({
     areaHectares,
     parcelSurfaceHa,
     forestIntersectionHectares,
+    forestClassBreakdown,
   );
   const sortedSpecies = [...effectiveSpecies].sort(
     (a, b) => b.areaHectares - a.areaHectares,
@@ -251,6 +235,7 @@ export function PolygonResultsPanel({
     areaHectares,
     parcelSurfaceHa,
     forestIntersectionHectares,
+    forestClassBreakdown,
   );
   const totalForestArea = forestMetrics.totalForestHa;
   const coveragePercentage = forestMetrics.coveragePct;
@@ -349,7 +334,9 @@ export function PolygonResultsPanel({
                         </p>
             {forestIntersectionHectares != null && (
               <p className="text-[10px] text-emerald-800 mt-1 leading-snug">
-                Overlap: your polygon ∩ BD Forêt parcel (from map geometries)
+                {hasClassBreakdown
+                  ? "Overlap: union of your polygon ∩ all BD Forêt v2 parcels (WFS) in the area"
+                  : "Overlap: your polygon ∩ BD Forêt parcel (from map geometries)"}
               </p>
             )}
             {parcelSurfaceHa != null && forestIntersectionHectares == null && (
@@ -363,22 +350,23 @@ export function PolygonResultsPanel({
                         <div className="flex items-center gap-2 text-amber-700 mb-2">
                             <Leaf size={16} />
               <span className="text-xs font-bold uppercase tracking-wide">
-                Species
+                {hasClassBreakdown ? "TFV classes" : "Species"}
               </span>
                         </div>
                         <p className="text-2xl font-bold text-gray-900">
                             {sortedSpecies.length}
                         </p>
                         <p className="text-xs text-amber-600 font-medium mt-1">
-              {effectivePlotCount} forest plot
-              {effectivePlotCount === 1 ? "" : "s"}
+              {hasClassBreakdown
+                ? `${effectivePlotCount} parcel${effectivePlotCount === 1 ? "" : "s"} (WFS)`
+                : `${effectivePlotCount} forest plot${effectivePlotCount === 1 ? "" : "s"}`}
             </p>
           </div>
         </div>
 
         {/* WMS snapshot — full-width blocks */}
         {lc &&
-          (hasForestSnapshot || lc.region || lc.department || lc.commune) && (
+          (lc.region || lc.department || lc.commune) && (
             <div className="space-y-3 w-full">
               <h4 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
                 <Trees size={18} className="text-emerald-600" />
@@ -393,90 +381,13 @@ export function PolygonResultsPanel({
                     </h4>
                   </div>
                   <p className="mt-1 text-xs text-gray-500 pl-7">
-                    Details captured at the polygon centroid.
+                    {hasClassBreakdown
+                      ? "Forest card: sample at polygon centroid. Coverage and class list use full polygon overlap (BD Forêt v2 WFS)."
+                      : "Details captured at the polygon centroid."}
                   </p>
                 </div>
 
                 <div className="space-y-3">
-                  {hasForestSnapshot && forestProps && (
-                    <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 bg-[#0b4a59] text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">
-                            <Trees size={16} />
-                          </div>
-                          <div className="min-w-0">
-                            <h5 className="font-semibold text-gray-900 truncate">
-                              Forest parcel (BD Forêt)
-                            </h5>
-                            <p className="text-xs text-gray-500 truncate">
-                              {(forestName as string) || "Forest area"}
-                            </p>
-                          </div>
-                        </div>
-                        {forestLayer && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-600 shrink-0">
-                            <FileType size={12} />
-                            {forestLayer}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        {forestId != null && (
-                          <div className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-                            <span className="text-xs font-semibold text-gray-600">
-                              ID
-                            </span>
-                            <span className="font-mono text-[11px] text-gray-700 break-all text-right">
-                              {String(forestId)}
-                            </span>
-                          </div>
-                        )}
-                        {forestCode != null && (
-                          <div className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-                            <span className="text-xs font-semibold text-gray-600">
-                              Code TFV
-                            </span>
-                            <span className="font-mono text-[11px] text-gray-700">
-                              {String(forestCode)}
-                            </span>
-                          </div>
-                        )}
-                        {forestType != null && (
-                          <div className="sm:col-span-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-                            <p className="text-xs font-semibold text-gray-600">
-                              Type
-                            </p>
-                            <p className="mt-0.5 text-sm font-medium text-gray-900">
-                              {String(forestType)}
-                            </p>
-                          </div>
-                        )}
-                        {forestSpecies != null && (
-                          <div className="sm:col-span-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-                            <p className="text-xs font-semibold text-gray-600">
-                              Species
-                            </p>
-                            <p className="mt-0.5 text-sm font-medium text-gray-900">
-                              {String(forestSpecies)}
-                            </p>
-                          </div>
-                        )}
-                        {forestCategory != null && (
-                          <div className="sm:col-span-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-                            <p className="text-xs font-semibold text-gray-600">
-                              Category
-                            </p>
-                            <p className="mt-0.5 text-sm font-medium text-gray-800">
-                              {String(forestCategory)}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
                   {lc.region && (
                     <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
                       <div className="flex items-start justify-between gap-3">
@@ -580,13 +491,6 @@ export function PolygonResultsPanel({
                   </p>
                 )}
               </div>
-              {typeof lc.sampleLng === "number" &&
-                typeof lc.sampleLat === "number" && (
-                  <p className="text-[10px] text-gray-400 font-mono">
-                    Sample point: {lc.sampleLat.toFixed(5)},{" "}
-                    {lc.sampleLng.toFixed(5)} (polygon centroid)
-                  </p>
-                )}
             </div>
           )}
 
@@ -618,9 +522,19 @@ export function PolygonResultsPanel({
               </h4>
             </div>
             <p className="mt-1 text-xs text-gray-500 pl-7">
-              Rows from BD Forêt <span className="font-medium">essence</span> when
-              present, otherwise <span className="font-medium">forest type (TFV)</span>.
-              Areas follow your overlap with the parcel (or saved analysis).
+              {hasClassBreakdown ? (
+                <>
+                  Rows are <span className="font-medium">BD Forêt v2 TFV classes</span>{" "}
+                  under your polygon (intersection areas from WFS). Percentages are shares
+                  of total forest overlap.
+                </>
+              ) : (
+                <>
+                  Rows from BD Forêt <span className="font-medium">essence</span> when
+                  present, otherwise <span className="font-medium">forest type (TFV)</span>.
+                  Areas follow your overlap with the parcel (or saved analysis).
+                </>
+              )}
             </p>
                     </div>
 
@@ -687,13 +601,17 @@ export function PolygonResultsPanel({
                     <div className="bg-[#0b4a59]/5 rounded-xl p-4 border border-[#0b4a59]/20">
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             <div className="flex justify-between">
-                                <span className="text-gray-600">Total Species:</span>
+                                <span className="text-gray-600">
+                  {hasClassBreakdown ? "TFV classes:" : "Total Species:"}
+                </span>
                 <span className="font-semibold text-[#0b4a59]">
                   {sortedSpecies.length}
                 </span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-gray-600">Forest Plots:</span>
+                                <span className="text-gray-600">
+                  {hasClassBreakdown ? "WFS parcels:" : "Forest Plots:"}
+                </span>
                 <span className="font-semibold text-[#0b4a59]">
                   {effectivePlotCount}
                 </span>

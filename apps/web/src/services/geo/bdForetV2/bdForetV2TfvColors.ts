@@ -34,8 +34,10 @@ export const BD_FORET_V2_TFV_LABELS: string[] = [
 ];
 
 const STORAGE_KEY = "forest-bd-bdforetv2-tfv-colors";
+const VISIBILITY_STORAGE_KEY = "forest-bd-bdforetv2-tfv-visibility";
 
 export type BdForetV2TfvColorMap = Record<string, string>;
+export type BdForetV2TfvVisibilityMap = Record<string, boolean>;
 
 function clamp01(n: number) {
   return Math.min(1, Math.max(0, n));
@@ -120,5 +122,40 @@ export function getBdForetV2TfvColor(
   overrides: BdForetV2TfvColorMap,
 ): string {
   return overrides[tfv] ?? defaultColorForTfv(tfv);
+}
+
+export function loadBdForetV2TfvVisibility(): BdForetV2TfvVisibilityMap {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(VISIBILITY_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: BdForetV2TfvVisibilityMap = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof k === "string" && typeof v === "boolean") out[k] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function saveBdForetV2TfvVisibility(
+  visibility: BdForetV2TfvVisibilityMap,
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(VISIBILITY_STORAGE_KEY, JSON.stringify(visibility));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function isBdForetV2TfvVisible(
+  tfv: string,
+  visibility: BdForetV2TfvVisibilityMap,
+): boolean {
+  return visibility[tfv] !== false;
 }
 

@@ -12,6 +12,7 @@ import {
   BD_FORET_V2_TFV_LABELS,
   defaultColorForTfv,
   type BdForetV2TfvColorMap,
+  type BdForetV2TfvVisibilityMap,
 } from "@/services/geo/bdForetV2/bdForetV2TfvColors";
 import {
   mapDropdownHeaderClass,
@@ -33,6 +34,8 @@ interface LayerControlPanelProps {
   onLayerColorChange: (layerId: string, color: string) => void;
   bdForetV2TfvColors?: BdForetV2TfvColorMap;
   onBdForetV2TfvColorChange?: (tfv: string, color: string) => void;
+  bdForetV2TfvVisibility?: BdForetV2TfvVisibilityMap;
+  onBdForetV2TfvVisibilityChange?: (tfv: string, visible: boolean) => void;
   currentZoom: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -44,6 +47,8 @@ export function LayerControlPanel({
   onLayerColorChange,
   bdForetV2TfvColors,
   onBdForetV2TfvColorChange,
+  bdForetV2TfvVisibility,
+  onBdForetV2TfvVisibilityChange,
   currentZoom,
   open,
   onOpenChange,
@@ -61,8 +66,10 @@ export function LayerControlPanel({
   );
   const legendRef = useRef<HTMLDivElement>(null);
   const [bdv2TfvEditing, setBdv2TfvEditing] = useState<string | null>(null);
+  const [bdv2Search, setBdv2Search] = useState("");
 
   const bdv2Colors = bdForetV2TfvColors ?? {};
+  const bdv2Visibility = bdForetV2TfvVisibility ?? {};
   const isBdForetV2LegendOpen = legendLayerId === "bd_foret_v2_polygons";
   const editingColor = bdv2TfvEditing
     ? normalizeLayerColorToHex(bdv2Colors[bdv2TfvEditing] ?? defaultColorForTfv(bdv2TfvEditing))
@@ -83,9 +90,16 @@ export function LayerControlPanel({
       BD_FORET_V2_TFV_LABELS.map((tfv) => ({
         tfv,
         color: normalizeLayerColorToHex(bdv2Colors[tfv] ?? defaultColorForTfv(tfv)),
+        visible: bdv2Visibility[tfv] !== false,
       })),
-    [bdv2Colors],
+    [bdv2Colors, bdv2Visibility],
   );
+
+  const filteredBdv2Rows = useMemo(() => {
+    const q = bdv2Search.trim().toLowerCase();
+    if (!q) return bdv2LegendRows;
+    return bdv2LegendRows.filter((r) => r.tfv.toLowerCase().includes(q));
+  }, [bdv2LegendRows, bdv2Search]);
 
   const isVisible = (layer: WMSLayerConfig) => {
     return (
@@ -354,8 +368,15 @@ export function LayerControlPanel({
                 <p className="text-[11px] text-gray-600">
                   Click a class to edit its color.
                 </p>
+                <input
+                  type="text"
+                  value={bdv2Search}
+                  onChange={(e) => setBdv2Search(e.target.value)}
+                  placeholder="Search class..."
+                  className="w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-[12px] outline-none focus:ring-2 focus:ring-[#0b4a59]/20"
+                />
                 <div className="max-h-[160px] overflow-auto rounded-lg border border-gray-100 bg-gray-50">
-                  {bdv2LegendRows.map((row) => (
+                  {filteredBdv2Rows.map((row) => (
                     <button
                       key={row.tfv}
                       type="button"
@@ -365,6 +386,20 @@ export function LayerControlPanel({
                       className="flex w-full items-center gap-2 border-b border-gray-100 px-2 py-1.5 text-left text-[12px] hover:bg-white last:border-0"
                       title={row.tfv}
                     >
+                      <input
+                        type="checkbox"
+                        checked={row.visible}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          onBdForetV2TfvVisibilityChange?.(
+                            row.tfv,
+                            e.currentTarget.checked,
+                          );
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-3.5 w-3.5 shrink-0"
+                        title={row.visible ? "Hide class" : "Show class"}
+                      />
                       <span
                         className="h-4 w-4 shrink-0 rounded-sm border border-black/10"
                         style={{ backgroundColor: row.color }}
