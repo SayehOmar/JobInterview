@@ -1,5 +1,8 @@
 const GEOSERVER_URL = "/geoserver"; // Proxy through Next.js
 const WORKSPACE = process.env.NEXT_PUBLIC_GEOSERVER_WORKSPACE || "prod";
+/** Proxied IGN Géoplateforme WMS (see `next.config.ts` → `/ign-wms` → `data.geopf.fr/wms-r`). */
+const IGN_WMS_URL = "/ign-wms";
+// (WMTS removed — keeping only WFS for BD Forêt v1/v2 layers)
 
 /** Normalize layer color strings (hex, rgb(), etc.) to #rrggbb for UI and map tint. */
 export function normalizeLayerColorToHex(input: string): string {
@@ -33,6 +36,21 @@ export interface WMSLayerConfig {
   id: string;
   name: string;
   layerName: string;
+  /** Where tile + GFI requests are sent. Default: GeoServer workspace layers. */
+  wmsBackend?: "geoserver" | "ign_geopf" | "ign_wfs";
+  /**
+   * IGN WMS layer name as published on `data.geopf.fr/wms-r` (e.g. `LANDCOVER.FORESTINVENTORY.V2`).
+   * Only used when `wmsBackend === "ign_geopf"`.
+   */
+  ignLayerName?: string;
+  /** WMS version for IGN layers (GeoServer path keeps 1.1.0 for compatibility). */
+  wmsVersion?: "1.1.0" | "1.3.0";
+  /** WMS style name for IGN layers (often `normal`). */
+  wmsStyle?: string;
+  /** WFS typeName when `wmsBackend === "ign_wfs"`. */
+  wfsTypeName?: string;
+  /** Optional legend image URL (usually from capabilities). */
+  legendUrl?: string;
   minZoom: number;
   maxZoom: number;
   opacity: number;
@@ -79,12 +97,29 @@ export const WMS_LAYERS: WMSLayerConfig[] = [
     id: "forest",
     name: "Forest (BD Forêt)",
     layerName: "forest",
+    wmsBackend: "geoserver",
     minZoom: 0,
     maxZoom: 22,
     opacity: 0.9,
     visible: true,
     color: "rgb(102,255,0)",
     description: "Forest inventory data",
+  },
+  {
+    id: "bd_foret_v2_polygons",
+    name: "BD Forêt v2 polygons (WFS)",
+    layerName: "bd_foret_v2_polygons",
+    wmsBackend: "ign_wfs",
+    wfsTypeName: "LANDCOVER.FORESTINVENTORY.V2:formation_vegetale",
+    // Same semantic classes as the WMTS tiles.
+    legendUrl:
+      "https://data.geopf.fr/annexes/ressources/legendes/LANDCOVER.FORESTINVENTORY.V2-legend.png",
+    minZoom: 0,
+    maxZoom: 22,
+    opacity: 0.35,
+    visible: false,
+    color: "#16a34a",
+    description: "Vector polygons from GeoPF WFS (may be heavy)",
   },
   {
     id: "cadastre",
@@ -104,15 +139,47 @@ export const buildWMSUrl = (layerName: string): string => {
 };
 
 export const getWMSTileUrl = (
-  layerName: string,
+  layer: WMSLayerConfig,
   cqlFilter?: string,
 ): string => {
+  const backend = layer.wmsBackend ?? "geoserver";
+
+  if (backend === "ign_wfs") {
+    // Not a raster tile layer.
+    return "";
+  }
+
+  if (backend === "ign_geopf") {
+    const ignLayer = layer.ignLayerName;
+    if (!ignLayer) {
+      throw new Error(`IGN layer missing ignLayerName for id=${layer.id}`);
+    }
+    const version = layer.wmsVersion ?? "1.3.0";
+    const style = layer.wmsStyle ?? "normal";
+
+    // IMPORTANT: keep `{bbox-epsg-3857}` unencoded so Mapbox can substitute it.
+    return (
+      `${IGN_WMS_URL}?` +
+      `SERVICE=WMS&` +
+      `VERSION=${encodeURIComponent(version)}&` +
+      `REQUEST=GetMap&` +
+      `LAYERS=${encodeURIComponent(ignLayer)}&` +
+      `STYLES=${encodeURIComponent(style)}&` +
+      `FORMAT=image/png&` +
+      `TRANSPARENT=true&` +
+      `CRS=EPSG:3857&` +
+      `BBOX={bbox-epsg-3857}&` +
+      `WIDTH=256&` +
+      `HEIGHT=256`
+    );
+  }
+
   let url =
     `${GEOSERVER_URL}/${WORKSPACE}/wms?` +
     `service=WMS&` +
     `version=1.1.0&` +
     `request=GetMap&` +
-    `layers=${WORKSPACE}:${layerName}&` +
+    `layers=${WORKSPACE}:${layer.layerName}&` +
     `styles=&` +
     `format=image/png&` +
     `transparent=true&` +

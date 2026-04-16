@@ -44,7 +44,7 @@ export function AnalysisDockBar({
                   e.stopPropagation();
                   onClose(item.id);
                 }}
-                className="absolute -top-1 -right-1 z-10 grid h-5 w-5 place-items-center rounded-full border border-white/30 bg-black/50 text-white/90 opacity-0 shadow-sm backdrop-blur transition-opacity duration-150 hover:bg-black/70 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60"
+                className="absolute -top-3 left-1/2 z-10 -translate-x-1/2 text-white/90 opacity-0 drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)] transition-opacity duration-150 hover:text-white group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60"
               >
                 <X size={12} strokeWidth={2.5} />
               </button>

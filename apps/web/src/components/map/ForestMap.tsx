@@ -30,21 +30,29 @@ import {
 } from "@/services/geo/wms/wmsRasterTint";
 import { createMapRuntime, MapStyleKey } from "@/services/map/mapProviders";
 import { flyMapToPolygonGeometry } from "@/services/map/mapFlyToPolygon";
-import { useAnalysisPanelDrag } from "@/components/map/useAnalysisPanelDrag";
-import { AnalysisDockBar } from "@/components/map/AnalysisDockBar";
+import * as turf from "@turf/turf";
+import { useAnalysisPanelDrag } from "@/components/map/analysis/useAnalysisPanelDrag";
+import { AnalysisDockBar } from "@/components/map/dock/AnalysisDockBar";
 import {
   pushDockItem,
   type DockedAnalysis,
-} from "@/components/map/analysisDock";
+} from "@/components/map/dock/analysisDock";
+import {
+  BD_FORET_V2_TFV_LABELS,
+  type BdForetV2TfvColorMap,
+  getBdForetV2TfvColor,
+  loadBdForetV2TfvColorOverrides,
+  saveBdForetV2TfvColorOverrides,
+} from "@/services/geo/bdForetV2/bdForetV2TfvColors";
 
-import { FilterPanel } from "./FilterPanel";
-import { SavePolygonModal } from "./SavePolygonModal";
-import { PolygonResultsPanel } from "./PolygonResultsPanel";
-import { SavedPolygonsList } from "./SavedPolygonsList";
-import { LayerControlPanel } from "./LayerControlPanel";
-import { UserMenuDropdown } from "./UserMenuDropdown";
-import { FeatureQueryPopup } from "./FeatureQueryPopup";
-import { MapFloatingControls } from "./MapFloatingControls";
+import { FilterPanel } from "./filters/FilterPanel";
+import { SavePolygonModal } from "./modals/SavePolygonModal";
+import { PolygonResultsPanel } from "./analysis/PolygonResultsPanel";
+import { SavedPolygonsList } from "./saved/SavedPolygonsList";
+import { LayerControlPanel } from "./layers/LayerControlPanel";
+import { UserMenuDropdown } from "./menus/UserMenuDropdown";
+import { FeatureQueryPopup } from "./popups/FeatureQueryPopup";
+import { MapFloatingControls } from "./controls/MapFloatingControls";
 
 import {
   Map as MapIcon,
@@ -93,6 +101,8 @@ export function ForestMap() {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(5);
   const [wmsLayers, setWmsLayers] = useState<WMSLayerConfig[]>(WMS_LAYERS);
+  const [bdForetV2TfvColors, setBdForetV2TfvColors] =
+    useState<BdForetV2TfvColorMap>({});
   const [isDrawing, setIsDrawing] = useState(false);
   /** After user completes a polygon on the map, the saved-polygons empty card may appear. */
   const [hasCompletedPolygonDraw, setHasCompletedPolygonDraw] = useState(false);
@@ -118,6 +128,10 @@ export function ForestMap() {
     w: number;
     h: number;
   } | null>(null);
+
+  useEffect(() => {
+    setBdForetV2TfvColors(loadBdForetV2TfvColorOverrides());
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -230,19 +244,26 @@ export function ForestMap() {
   } = useMapStore();
   const { user, logout, updateUser } = useAuthStore();
 
-  const { data: savedPolygonsData, refetch: refetchPolygons } = useQuery(
-    GET_MY_POLYGONS,
-    {
-      skip: !user,
-      fetchPolicy: "cache-and-network",
-    },
-  );
-  const [updateMapState] = useMutation(UPDATE_MAP_STATE);
+  const { data: savedPolygonsData, refetch: refetchPolygons } = useQuery<{
+    myPolygons?: any[];
+  }>(GET_MY_POLYGONS, {
+    skip: !user,
+    fetchPolicy: "cache-and-network",
+  });
+  const [updateMapState] = useMutation<any>(UPDATE_MAP_STATE);
   const [savePolygon] = useMutation(SAVE_POLYGON_MUTATION);
 
   const [dockedAnalyses, setDockedAnalyses] = useState<DockedAnalysis<any>[]>(
     [],
   );
+
+  const wmsLayersRef = useRef<WMSLayerConfig[]>(WMS_LAYERS);
+  useEffect(() => {
+    wmsLayersRef.current = wmsLayers;
+  }, [wmsLayers]);
+
+  // Track/cancel WFS requests (they can be very heavy).
+  const wfsAbortRef = useRef<Record<string, AbortController | null>>({});
 
   // Persist minimized analyses across refresh.
   useEffect(() => {
@@ -398,6 +419,22 @@ export function ForestMap() {
         setMapLoaded(true);
         addWMSLayers(map.current!);
         updateZoom();
+
+        // MapLibre style-spec is stricter about array literals in expressions.
+        // MapboxDraw sometimes injects a `line-dasharray` that triggers warnings/errors.
+        try {
+          const fix = (id: string) => {
+            if (!map.current?.getLayer?.(id)) return;
+            map.current.setPaintProperty(id, "line-dasharray", [
+              "literal",
+              [2, 2],
+            ]);
+          };
+          fix("gl-draw-lines.cold");
+          fix("gl-draw-lines.hot");
+        } catch {
+          /* ignore */
+        }
       });
 
       map.current.on("zoom", updateZoom);
@@ -446,7 +483,7 @@ export function ForestMap() {
             },
           })
             .then((result) => {
-              updateUser(result.data.updateMapState);
+              updateUser((result as any)?.data?.updateMapState);
             })
             .catch(console.error);
         }
@@ -536,7 +573,7 @@ export function ForestMap() {
   const updateWMSLayerVisibility = (zoom: number, mapInstance?: any) => {
     const m = mapInstance ?? map.current;
     if (!m) return;
-    wmsLayers.forEach((layer) => {
+    wmsLayersRef.current.forEach((layer) => {
       const layerId = `wms-layer-${layer.id}`;
       if (!m.getLayer(layerId)) return;
       const shouldBeVisible =
@@ -550,57 +587,227 @@ export function ForestMap() {
   };
 
   // Add WMS layers (CQL matches Explore-area filters so tiles exclude other admin units)
-  const addWMSLayers = useCallback(
-    (mapInstance: any) => {
-      const mapFilters = useMapStore.getState().filters;
+  const addWMSLayers = useCallback((mapInstance: any) => {
+    const mapFilters = useMapStore.getState().filters;
+    const layers = wmsLayersRef.current;
 
-      wmsLayers.forEach((layer) => {
-        const sourceId = `wms-${layer.id}`;
-        const layerId = `wms-layer-${layer.id}`;
+    // Rebuild sources when filters change (tile URLs change). This should NOT run
+    // for pure color edits; those are handled via paint updates elsewhere.
+    for (const layer of layers) {
+      const sourceId = `wms-${layer.id}`;
+      const layerId = `wms-layer-${layer.id}`;
+      if (mapInstance.getLayer(layerId)) mapInstance.removeLayer(layerId);
+      if (mapInstance.getSource(sourceId)) mapInstance.removeSource(sourceId);
 
-        if (mapInstance.getLayer(layerId)) {
-          mapInstance.removeLayer(layerId);
-        }
-        if (mapInstance.getSource(sourceId)) {
-          mapInstance.removeSource(sourceId);
-        }
+      // Vector (WFS) companion layers
+      const vFill = `wfs-fill-${layer.id}`;
+      const vLine = `wfs-line-${layer.id}`;
+      const vSrc = `wfs-${layer.id}`;
+      if (mapInstance.getLayer(vFill)) mapInstance.removeLayer(vFill);
+      if (mapInstance.getLayer(vLine)) mapInstance.removeLayer(vLine);
+      if (mapInstance.getSource(vSrc)) mapInstance.removeSource(vSrc);
+    }
+
+    for (const layer of layers) {
+      if (layer.wmsBackend === "ign_wfs") continue;
+      const sourceId = `wms-${layer.id}`;
+      const layerId = `wms-layer-${layer.id}`;
+      const cql = buildWmsCqlForLayer(layer.id, mapFilters);
+
+      mapInstance.addSource(sourceId, {
+        type: "raster",
+        tiles: [getWMSTileUrl(layer, cql)],
+        tileSize: 256,
+        scheme: "xyz",
+        // Help Mapbox request only supported WMTS zooms (IGN BD Forêt WMTS is 6..16).
+        minzoom: layer.minZoom,
+        maxzoom: layer.maxZoom,
       });
 
-      wmsLayers.forEach((layer) => {
-        const sourceId = `wms-${layer.id}`;
-        const layerId = `wms-layer-${layer.id}`;
-        const cql = buildWmsCqlForLayer(layer.id, mapFilters);
+      mapInstance.addLayer({
+        id: layerId,
+        type: "raster",
+        source: sourceId,
+        paint: {
+          "raster-opacity": layer.visible ? layer.opacity : 0,
+          ...getRasterTintPaintProps(
+            WMS_LAYERS.find((l) => l.id === layer.id)?.color,
+            layer.color,
+          ),
+        },
+        layout: { visibility: layer.visible ? "visible" : "none" },
+      });
+    }
+    updateWMSLayerVisibility(mapInstance.getZoom(), mapInstance);
+  }, []);
 
-        mapInstance.addSource(sourceId, {
-          type: "raster",
-          tiles: [getWMSTileUrl(layer.layerName, cql)],
-          tileSize: 256,
-          scheme: "xyz",
-        });
+  const addOrUpdateWfsLayer = useCallback(
+    async (mapInstance: any, layer: WMSLayerConfig) => {
+      if (layer.wmsBackend !== "ign_wfs" || !layer.wfsTypeName) return;
+      const zoom = mapInstance.getZoom?.() ?? currentZoom;
+      const shouldBeVisible =
+        layer.visible && zoom >= layer.minZoom && zoom <= layer.maxZoom;
 
+      const srcId = `wfs-${layer.id}`;
+      const fillId = `wfs-fill-${layer.id}`;
+      const lineId = `wfs-line-${layer.id}`;
+
+      // Hide if not visible
+      if (!shouldBeVisible) {
+        if (mapInstance.getLayer(fillId)) {
+          mapInstance.setLayoutProperty(fillId, "visibility", "none");
+          mapInstance.setPaintProperty(fillId, "fill-opacity", 0);
+        }
+        if (mapInstance.getLayer(lineId)) {
+          mapInstance.setLayoutProperty(lineId, "visibility", "none");
+          mapInstance.setPaintProperty(lineId, "line-opacity", 0);
+        }
+        return;
+      }
+
+      // Fetch features in current view bbox (EPSG:4326)
+      const b = mapInstance.getBounds?.();
+      if (!b) return;
+      const minx = b.getWest();
+      const miny = b.getSouth();
+      const maxx = b.getEast();
+      const maxy = b.getNorth();
+
+      // Cancel any in-flight request for this layer id.
+      try {
+        wfsAbortRef.current[layer.id]?.abort();
+      } catch {
+        /* ignore */
+      }
+      const ctrl = new AbortController();
+      wfsAbortRef.current[layer.id] = ctrl;
+
+      // Zoom-adaptive caps: keep payload reasonable at low zooms.
+      const count =
+        zoom < 6 ? 60 : zoom < 10 ? 220 : zoom < 13 ? 650 : zoom < 16 ? 1200 : 2000;
+
+      const url =
+        `/ign-wfs/ows?` +
+        `SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&` +
+        `TYPENAMES=${encodeURIComponent(layer.wfsTypeName)}&` +
+        `SRSNAME=EPSG:4326&OUTPUTFORMAT=application%2Fjson&` +
+        // Keep payload bounded; WFS polygons are huge.
+        `COUNT=${count}&` +
+        `BBOX=${minx},${miny},${maxx},${maxy},EPSG:4326`;
+
+      let fc: any = null;
+      try {
+        const res = await fetch(url, { signal: ctrl.signal });
+        if (!res.ok) return;
+        fc = await res.json();
+      } catch {
+        return;
+      }
+
+      // Optional: simplify geometry at low zoom to reduce render cost.
+      try {
+        if (zoom < 10 && fc?.features?.length) {
+          const tol = zoom < 6 ? 0.01 : 0.004; // degrees
+          fc = turf.simplify(fc, { tolerance: tol, highQuality: false });
+        }
+      } catch {
+        /* ignore */
+      }
+
+      // Ignore if a newer request has replaced this one.
+      if (wfsAbortRef.current[layer.id] !== ctrl) return;
+
+      const isBdForetV2 = layer.id === "bd_foret_v2_polygons";
+      const buildFillColor = () => {
+        if (!isBdForetV2) return layer.color ?? "#16a34a";
+        const pairs: any[] = [];
+        for (const lbl of BD_FORET_V2_TFV_LABELS) {
+          pairs.push(lbl, getBdForetV2TfvColor(lbl, bdForetV2TfvColors));
+        }
+        return ["match", ["get", "tfv"], ...pairs, "#888888"];
+      };
+
+      if (!mapInstance.getSource(srcId)) {
+        mapInstance.addSource(srcId, { type: "geojson", data: fc });
         mapInstance.addLayer({
-          id: layerId,
-          type: "raster",
-          source: sourceId,
+          id: fillId,
+          type: "fill",
+          source: srcId,
           paint: {
-            "raster-opacity": layer.visible ? layer.opacity : 0,
-            ...getRasterTintPaintProps(
-              WMS_LAYERS.find((l) => l.id === layer.id)?.color,
-              layer.color,
-            ),
+            "fill-color": buildFillColor(),
+            "fill-opacity": layer.opacity,
           },
-          layout: { visibility: layer.visible ? "visible" : "none" },
+          layout: { visibility: "visible" },
         });
-      });
-      updateWMSLayerVisibility(mapInstance.getZoom(), mapInstance);
+        mapInstance.addLayer({
+          id: lineId,
+          type: "line",
+          source: srcId,
+          paint: {
+            "line-color": "#0b4a59",
+            "line-width": 1.2,
+            "line-opacity": Math.min(1, layer.opacity + 0.25),
+          },
+          layout: { visibility: "visible" },
+        });
+      } else {
+        mapInstance.getSource(srcId).setData(fc);
+        if (mapInstance.getLayer(fillId)) {
+          mapInstance.setLayoutProperty(fillId, "visibility", "visible");
+          mapInstance.setPaintProperty(fillId, "fill-opacity", layer.opacity);
+          mapInstance.setPaintProperty(fillId, "fill-color", buildFillColor());
+        }
+        if (mapInstance.getLayer(lineId)) {
+          mapInstance.setLayoutProperty(lineId, "visibility", "visible");
+          mapInstance.setPaintProperty(
+            lineId,
+            "line-opacity",
+            Math.min(1, layer.opacity + 0.25),
+          );
+          mapInstance.setPaintProperty(lineId, "line-color", "#0b4a59");
+        }
+      }
     },
-    [wmsLayers],
+    [currentZoom, bdForetV2TfvColors],
   );
 
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
     addWMSLayers(map.current);
-  }, [filters, mapLoaded, wmsLayers, addWMSLayers]);
+  }, [filters, mapLoaded, addWMSLayers]);
+
+  // Keep WFS polygon layers in sync (only when they are enabled).
+  // Debounced + cancellable to avoid locking up the UI during pan/zoom.
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !mapLoaded) return;
+    let timer: number | null = null;
+    const run = () => {
+      const enabled = wmsLayersRef.current.filter(
+        (l) => l.wmsBackend === "ign_wfs" && l.visible,
+      );
+      enabled.forEach((l) => addOrUpdateWfsLayer(m, l));
+    };
+    const onMoveEnd = () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(run, 650);
+    };
+    m.on("moveend", onMoveEnd);
+    // only run immediately if some WFS layer is enabled
+    run();
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      m.off("moveend", onMoveEnd);
+      // cancel any in-flight WFS requests when unmounting
+      for (const k of Object.keys(wfsAbortRef.current)) {
+        try {
+          wfsAbortRef.current[k]?.abort();
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+  }, [mapLoaded, addOrUpdateWfsLayer]);
 
   const handleToggleLayer = (layerId: string) => {
     const updatedLayers = wmsLayers.map((l) =>
@@ -620,6 +827,33 @@ export function ForestMap() {
           "visibility",
           shouldBeVisible ? "visible" : "none",
         );
+        // Keep opacity in sync; otherwise layers that were created while hidden stay invisible
+        // until a full style reload/rebuild (e.g. switching basemap).
+        map.current.setPaintProperty(
+          mapLayerId,
+          "raster-opacity",
+          shouldBeVisible ? layer.opacity : 0,
+        );
+      }
+      // WFS vector layer toggle
+      const fillId = `wfs-fill-${layerId}`;
+      const lineId = `wfs-line-${layerId}`;
+      if (layer?.wmsBackend === "ign_wfs") {
+        addOrUpdateWfsLayer(map.current, layer);
+        if (map.current.getLayer(fillId)) {
+          map.current.setLayoutProperty(
+            fillId,
+            "visibility",
+            layer.visible ? "visible" : "none",
+          );
+        }
+        if (map.current.getLayer(lineId)) {
+          map.current.setLayoutProperty(
+            lineId,
+            "visibility",
+            layer.visible ? "visible" : "none",
+          );
+        }
       }
     }
   };
@@ -631,6 +865,21 @@ export function ForestMap() {
       return next;
     });
   };
+
+  // When BD Forêt v2 category colors change, update paint on existing WFS layer immediately.
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !mapLoaded) return;
+    const layer = wmsLayersRef.current.find((l) => l.id === "bd_foret_v2_polygons");
+    if (!layer || layer.wmsBackend !== "ign_wfs") return;
+    const fillId = `wfs-fill-${layer.id}`;
+    if (!m.getLayer(fillId)) return;
+    const pairs: any[] = [];
+    for (const lbl of BD_FORET_V2_TFV_LABELS) {
+      pairs.push(lbl, getBdForetV2TfvColor(lbl, bdForetV2TfvColors));
+    }
+    m.setPaintProperty(fillId, "fill-color", ["match", ["get", "tfv"], ...pairs, "#888888"]);
+  }, [bdForetV2TfvColors, mapLoaded]);
 
   // Start drawing mode (same MapboxDraw mode as the old polygon control)
   const handleDrawStart = () => {
@@ -729,7 +978,7 @@ export function ForestMap() {
       // @ts-ignore
       displaySavedPolygonsOnMap(
         map.current!,
-        savedPolygonsData.myPolygons,
+        savedPolygonsData.myPolygons ?? [],
         false,
       );
     }, 500);
@@ -844,6 +1093,14 @@ export function ForestMap() {
           layers={wmsLayers}
           onToggleLayer={handleToggleLayer}
           onLayerColorChange={handleLayerColorChange}
+          bdForetV2TfvColors={bdForetV2TfvColors}
+          onBdForetV2TfvColorChange={(tfv, color) => {
+            setBdForetV2TfvColors((prev) => {
+              const next = { ...prev, [tfv]: color };
+              saveBdForetV2TfvColorOverrides(next);
+              return next;
+            });
+          }}
           currentZoom={currentZoom}
           open={layersMenuOpen}
           onOpenChange={(v) => {

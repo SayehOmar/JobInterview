@@ -6,7 +6,7 @@ import { X, Trees, Ruler } from 'lucide-react';
 import {
   savedPolyPillBtnNeutralRow,
   savedPolyPillBtnPrimaryRow,
-} from '@/components/map/savedPolygonsUi';
+} from '@/components/map/saved/savedPolygonsUi';
 
 interface SavePolygonModalProps {
     geometry: any;

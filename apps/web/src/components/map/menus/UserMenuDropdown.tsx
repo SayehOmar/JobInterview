@@ -1,8 +1,8 @@
 'use client';
 
 import { User, LogOut } from 'lucide-react';
-import { mapDropdownHeaderClass, mapDropdownPanelClass } from './mapDropdownStyles';
-import { savedPolyPillBtnDanger } from './savedPolygonsUi';
+import { mapDropdownHeaderClass, mapDropdownPanelClass } from '../mapDropdownStyles';
+import { savedPolyPillBtnDanger } from '../saved/savedPolygonsUi';
 import { useAreaUnitStore } from '@/store/areaUnitStore';
 import type { AreaUnit } from '@/services/format/areaFormat';
 

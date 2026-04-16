@@ -30,9 +30,9 @@ import {
 import {
   LocationCombobox,
   type ComboboxOption,
-} from "@/components/map/LocationCombobox";
+} from "./LocationCombobox";
 import { TreePine, RotateCcw, X } from "lucide-react";
-import { savedPolyPillBtnWideNeutral } from "@/components/map/savedPolygonsUi";
+import { savedPolyPillBtnWideNeutral } from "@/components/map/saved/savedPolygonsUi";
 
 interface FilterPanelProps {
   onRegionSelect?: (lat: number, lng: number, zoom: number) => void;

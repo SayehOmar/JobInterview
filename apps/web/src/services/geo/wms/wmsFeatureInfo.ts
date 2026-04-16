@@ -1,8 +1,13 @@
 import type { MapFilters } from "@/store/mapStore";
 import { buildWmsCqlForLayer } from "@/services/geo/wms/wmsLayerCql";
+import {
+  WMS_LAYERS,
+  type WMSLayerConfig,
+} from "@/services/geo/wms/wmsLayers";
 
 const GEOSERVER_URL = "/geoserver";
 const WORKSPACE = "prod";
+const IGN_WMS_URL = "/ign-wms";
 
 export interface FeatureInfoResponse {
   type: string;
@@ -27,7 +32,7 @@ function lngLatTo3857(lng: number, lat: number): [number, number] {
 }
 
 export const getFeatureInfo = async (
-  layerName: string,
+  layer: WMSLayerConfig,
   lng: number,
   lat: number,
   map: mapboxgl.Map,
@@ -42,12 +47,57 @@ export const getFeatureInfo = async (
   // @ts-ignore
   const [maxx, maxy] = lngLatTo3857(bounds.getEast(), bounds.getNorth());
 
+  const backend = layer.wmsBackend ?? "geoserver";
+
+  if (backend === "ign_geopf") {
+    const ignLayer = layer.ignLayerName;
+    if (!ignLayer) return null;
+    const version = layer.wmsVersion ?? "1.3.0";
+    const style = layer.wmsStyle ?? "normal";
+
+    const params = new URLSearchParams({
+      SERVICE: "WMS",
+      VERSION: version,
+      REQUEST: "GetFeatureInfo",
+      LAYERS: ignLayer,
+      QUERY_LAYERS: ignLayer,
+      STYLES: style,
+      // Required by IGN GeoPF WMS-R for GetFeatureInfo (mirrors underlying map format)
+      FORMAT: "image/png",
+      INFO_FORMAT: "application/json",
+      FEATURE_COUNT: "1",
+      CRS: "EPSG:3857",
+      BBOX: `${minx},${miny},${maxx},${maxy}`,
+      WIDTH: map.getCanvas().width.toString(),
+      HEIGHT: map.getCanvas().height.toString(),
+    });
+
+    // WMS 1.3.0 uses i/j; 1.1.x uses x/y. IGN GeoPF is 1.3.0 here.
+    if (version.startsWith("1.3")) {
+      params.set("I", Math.floor(point.x).toString());
+      params.set("J", Math.floor(point.y).toString());
+    } else {
+      params.set("X", Math.floor(point.x).toString());
+      params.set("Y", Math.floor(point.y).toString());
+    }
+
+    const url = `${IGN_WMS_URL}?${params.toString()}`;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (error) {
+      console.error(`Error fetching IGN GFI ${ignLayer}:`, error);
+      return null;
+    }
+  }
+
   const params = new URLSearchParams({
     service: "WMS",
     version: "1.1.1",
     request: "GetFeatureInfo",
-    layers: `${WORKSPACE}:${layerName}`,
-    query_layers: `${WORKSPACE}:${layerName}`,
+    layers: `${WORKSPACE}:${layer.layerName}`,
+    query_layers: `${WORKSPACE}:${layer.layerName}`,
     styles: "",
     format: "image/png",
     transparent: "true",
@@ -71,7 +121,7 @@ export const getFeatureInfo = async (
     if (!response.ok) return null;
     return await response.json();
   } catch (error) {
-    console.error(`Error fetching ${layerName}:`, error);
+    console.error(`Error fetching ${layer.layerName}:`, error);
     return null;
   }
 };
@@ -99,13 +149,24 @@ export const queryAllLayers = async (
   const cqlCommune = buildWmsCqlForLayer("commune", filters);
   const cqlForest = buildWmsCqlForLayer("forest", filters);
 
+  const layer = (id: string) => WMS_LAYERS.find((l) => l.id === id);
+  const regionL = layer("region");
+  const deptL = layer("department");
+  const communeL = layer("commune");
+  const forestL = layer("forest");
+  if (!regionL || !deptL || !communeL || !forestL) {
+    console.error("WMS_LAYERS missing expected ids (region/department/commune/forest)");
+  }
+
   const [region, department, commune, forest] = await Promise.all([
-    skipRegion ? Promise.resolve(null) : getFeatureInfo("region", lng, lat, map, cqlRegion),
-    skipDepartment
+    skipRegion || !regionL
       ? Promise.resolve(null)
-      : getFeatureInfo("department", lng, lat, map, cqlDept),
-    getFeatureInfo("cummune", lng, lat, map, cqlCommune),
-    getFeatureInfo("forest", lng, lat, map, cqlForest),
+      : getFeatureInfo(regionL, lng, lat, map, cqlRegion),
+    skipDepartment || !deptL
+      ? Promise.resolve(null)
+      : getFeatureInfo(deptL, lng, lat, map, cqlDept),
+    communeL ? getFeatureInfo(communeL, lng, lat, map, cqlCommune) : Promise.resolve(null),
+    forestL ? getFeatureInfo(forestL, lng, lat, map, cqlForest) : Promise.resolve(null),
   ]);
 
   return { region, department, commune, forest };

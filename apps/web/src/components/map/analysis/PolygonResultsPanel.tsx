@@ -32,7 +32,7 @@ import {
 } from "@/services/geo/polygonAnalysisDisplay";
 import { formatArea } from "@/services/format/areaFormat";
 import { useAreaUnitStore } from "@/store/areaUnitStore";
-import { savedPolyPillBtnOutline } from "@/components/map/savedPolygonsUi";
+import { savedPolyPillBtnOutline } from "@/components/map/saved/savedPolygonsUi";
 
 interface SpeciesDistribution {
     species: string;

@@ -15,19 +15,22 @@ export default function Home() {
   const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('token');
 
   // Check auth status on mount
-  const { loading: meLoading } = useQuery(ME_QUERY, {
+  const { data: meData, loading: meLoading, error: meError } = useQuery(ME_QUERY, {
     skip: !hasToken,
-    onCompleted: (data) => {
-      if (data?.me) {
-        setAuth(data.me);
-      }
-      setLoading(false);
-    },
-    onError: () => {
+  });
+
+  useEffect(() => {
+    if (!hasToken) return;
+    if (meError) {
       logout();
       setLoading(false);
-    },
-  });
+      return;
+    }
+    if (!meLoading) {
+      if (meData?.me) setAuth(meData.me);
+      setLoading(false);
+    }
+  }, [hasToken, meData, meError, meLoading, logout, setAuth, setLoading]);
 
   useEffect(() => {
     // If there's no token, we shouldn't block the UI in a loading state
