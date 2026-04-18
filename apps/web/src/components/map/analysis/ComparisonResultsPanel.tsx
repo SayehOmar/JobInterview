@@ -4,13 +4,7 @@ import { useEffect, useMemo, useState, type HTMLAttributes, type RefObject } fro
 import type { Map } from "mapbox-gl";
 import { X, Minimize2, Ruler, Trees, Leaf, Scale } from "lucide-react";
 import type { SavedLocationContext } from "@/services/geo/locationContextSnapshot";
-import { buildLocationContextFromDrawnGeometry } from "@/services/geo/locationContextSnapshot";
-import {
-  buildEffectiveForestCover,
-  buildEffectiveSpeciesRows,
-  parseForestSurfaceHectares,
-  mergeLocationContext,
-} from "@/services/geo/polygonAnalysisDisplay";
+import { computePolygonAnalysis, refreshLocationContextForGeometry } from "@/services/domains/polygonAnalysis";
 import { formatArea } from "@/services/format/areaFormat";
 import { useAreaUnitStore } from "@/store/areaUnitStore";
 
@@ -73,19 +67,21 @@ export function ComparisonResultsPanel({
       try {
         if (result.a.geometry && typeof result.a.geometry === "object") {
           const saved = (result.a.locationContext as SavedLocationContext | undefined) ?? null;
-          const fresh = await buildLocationContextFromDrawnGeometry(
+          const fresh = await refreshLocationContextForGeometry(
             result.a.geometry as Record<string, unknown>,
             map,
+            saved,
           );
-          if (!cancelled) setLcA(mergeLocationContext(saved, fresh));
+          if (!cancelled) setLcA(fresh);
         }
         if (result.b.geometry && typeof result.b.geometry === "object") {
           const saved = (result.b.locationContext as SavedLocationContext | undefined) ?? null;
-          const fresh = await buildLocationContextFromDrawnGeometry(
+          const fresh = await refreshLocationContextForGeometry(
             result.b.geometry as Record<string, unknown>,
             map,
+            saved,
           );
-          if (!cancelled) setLcB(mergeLocationContext(saved, fresh));
+          if (!cancelled) setLcB(fresh);
         }
       } catch {
         /* ignore */
@@ -98,59 +94,21 @@ export function ComparisonResultsPanel({
   }, [mapRef, result.a.id, result.b.id, result.a.geometry, result.b.geometry, result.a.locationContext, result.b.locationContext]);
 
   const metricsA = useMemo(() => {
-    const forestProps = (lcA?.forest ?? null) as Record<string, unknown> | null;
-    const parcelHa = parseForestSurfaceHectares(forestProps);
-    const forestIntersectionHectares =
-      lcA?.forestIntersectionHectares != null && Number.isFinite(lcA.forestIntersectionHectares)
-        ? lcA.forestIntersectionHectares
-        : null;
-    const forestClassBreakdown = lcA?.forestClassBreakdown ?? null;
-    const stats = result.a.analysisResults || {};
-    const forest = buildEffectiveForestCover(
-      stats,
-      forestProps,
-      result.a.areaHectares,
-      parcelHa,
-      forestIntersectionHectares,
-      forestClassBreakdown,
-    );
-    const species = buildEffectiveSpeciesRows(
-      (stats as any).speciesDistribution,
-      forestProps,
-      result.a.areaHectares,
-      parcelHa,
-      forestIntersectionHectares,
-      forestClassBreakdown,
-    );
-    return { forest, species };
+    const computed = computePolygonAnalysis({
+      polygonAreaHa: result.a.areaHectares,
+      analysisResults: result.a.analysisResults ?? null,
+      locationContext: lcA,
+    });
+    return { forest: computed.forest, species: computed.rows };
   }, [lcA, result.a]);
 
   const metricsB = useMemo(() => {
-    const forestProps = (lcB?.forest ?? null) as Record<string, unknown> | null;
-    const parcelHa = parseForestSurfaceHectares(forestProps);
-    const forestIntersectionHectares =
-      lcB?.forestIntersectionHectares != null && Number.isFinite(lcB.forestIntersectionHectares)
-        ? lcB.forestIntersectionHectares
-        : null;
-    const forestClassBreakdown = lcB?.forestClassBreakdown ?? null;
-    const stats = result.b.analysisResults || {};
-    const forest = buildEffectiveForestCover(
-      stats,
-      forestProps,
-      result.b.areaHectares,
-      parcelHa,
-      forestIntersectionHectares,
-      forestClassBreakdown,
-    );
-    const species = buildEffectiveSpeciesRows(
-      (stats as any).speciesDistribution,
-      forestProps,
-      result.b.areaHectares,
-      parcelHa,
-      forestIntersectionHectares,
-      forestClassBreakdown,
-    );
-    return { forest, species };
+    const computed = computePolygonAnalysis({
+      polygonAreaHa: result.b.areaHectares,
+      analysisResults: result.b.analysisResults ?? null,
+      locationContext: lcB,
+    });
+    return { forest: computed.forest, species: computed.rows };
   }, [lcB, result.b]);
 
   const diff = useMemo(() => {

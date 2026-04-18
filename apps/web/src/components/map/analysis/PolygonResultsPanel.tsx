@@ -22,16 +22,14 @@ import {
   Minimize2,
 } from "lucide-react";
 import type { SavedLocationContext } from "@/services/geo/locationContextSnapshot";
-import { buildLocationContextFromDrawnGeometry } from "@/services/geo/locationContextSnapshot";
 import {
-  buildEffectiveForestCover,
-  buildEffectiveSpeciesRows,
-  mergeLocationContext,
-  parseForestSurfaceHectares,
-} from "@/services/geo/polygonAnalysisDisplay";
+  computePolygonAnalysis,
+  refreshLocationContextForGeometry,
+} from "@/services/domains/polygonAnalysis";
 import { formatArea } from "@/services/format/areaFormat";
 import { useAreaUnitStore } from "@/store/areaUnitStore";
 import { savedPolyPillBtnOutline } from "@/components/map/saved/savedPolygonsUi";
+import { parseForestSurfaceHectares } from "@/services/geo/polygonAnalysisDisplay";
 
 interface SpeciesDistribution {
     species: string;
@@ -178,12 +176,13 @@ export function PolygonResultsPanel({
     setWmsLoading(true);
     (async () => {
       try {
-        const fresh = await buildLocationContextFromDrawnGeometry(
+        const fresh = await refreshLocationContextForGeometry(
           geometry as Record<string, unknown>,
           map,
+          saved,
         );
         if (cancelled) return;
-        setResolvedLc(mergeLocationContext(saved, fresh));
+        setResolvedLc(fresh);
       } catch {
         if (!cancelled) setResolvedLc(saved);
       } finally {
@@ -200,9 +199,7 @@ export function PolygonResultsPanel({
   const lc = resolvedLc;
   const forestProps = (lc?.forest ?? null) as Record<string, unknown> | null;
 
-  const parcelSurfaceHa = parseForestSurfaceHectares(forestProps);
-  const forestClassBreakdown = lc?.forestClassBreakdown;
-  const hasClassBreakdown = (forestClassBreakdown?.length ?? 0) > 0;
+  const hasClassBreakdown = (lc?.forestClassBreakdown?.length ?? 0) > 0;
   const forestIntersectionHectares =
     lc?.forestIntersectionHectares != null &&
     Number.isFinite(lc.forestIntersectionHectares)
@@ -217,29 +214,21 @@ export function PolygonResultsPanel({
     forestTypes: [],
   };
 
-  const effectiveSpecies = buildEffectiveSpeciesRows(
-    stats.speciesDistribution,
-    forestProps,
-    areaHectares,
-    parcelSurfaceHa,
-    forestIntersectionHectares,
-    forestClassBreakdown,
-  );
-  const sortedSpecies = [...effectiveSpecies].sort(
+  const computed = computePolygonAnalysis({
+    polygonAreaHa: areaHectares,
+    analysisResults: stats,
+    locationContext: lc,
+  });
+
+  const parcelSurfaceHa = parseForestSurfaceHectares(forestProps);
+
+  const sortedSpecies = [...computed.rows].sort(
     (a, b) => b.areaHectares - a.areaHectares,
   );
 
-  const forestMetrics = buildEffectiveForestCover(
-    stats,
-    forestProps,
-    areaHectares,
-    parcelSurfaceHa,
-    forestIntersectionHectares,
-    forestClassBreakdown,
-  );
-  const totalForestArea = forestMetrics.totalForestHa;
-  const coveragePercentage = forestMetrics.coveragePct;
-  const effectivePlotCount = forestMetrics.plotCount;
+  const totalForestArea = computed.forest.totalForestHa;
+  const coveragePercentage = computed.forest.coveragePct;
+  const effectivePlotCount = computed.forest.plotCount;
 
     const hasData = sortedSpecies.length > 0;
 

@@ -1,5 +1,11 @@
 import { gql } from '@apollo/client';
 
+export type RegionsQueryData = { regions: string[] };
+export type DepartementsQueryData = { departements: string[] };
+export type DepartementsQueryVariables = { regionCode: string };
+export type CommunesQueryData = { communes: string[] };
+export type CommunesQueryVariables = { departementCode: string };
+
 export const GET_REGIONS = gql`
   query Regions {
     regions

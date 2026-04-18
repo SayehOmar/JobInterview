@@ -11,9 +11,9 @@ import { UPDATE_MAP_STATE } from "@/graphql/auth";
 import { GET_MY_POLYGONS, SAVE_POLYGON_MUTATION } from "@/graphql/polygons";
 import { queryAllLayers } from "@/services/geo/wms/wmsFeatureInfo";
 import {
-  buildLocationContextFromDrawnGeometry,
   type SavedLocationContext,
 } from "@/services/geo/locationContextSnapshot";
+import { refreshLocationContextForGeometry } from "@/services/domains/polygonAnalysis";
 import {
   WMS_LAYERS,
   getWMSTileUrl,
@@ -1013,7 +1013,7 @@ export function ForestMap() {
       let locationContext: SavedLocationContext | undefined;
       if (map.current) {
         try {
-          const snap = await buildLocationContextFromDrawnGeometry(
+          const snap = await refreshLocationContextForGeometry(
             drawnGeometry as Record<string, unknown>,
             map.current,
           );

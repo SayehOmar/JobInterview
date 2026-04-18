@@ -7,6 +7,11 @@ import {
   GET_REGIONS,
   GET_DEPARTEMENTS,
   GET_COMMUNES,
+  type RegionsQueryData,
+  type DepartementsQueryData,
+  type DepartementsQueryVariables,
+  type CommunesQueryData,
+  type CommunesQueryVariables,
 } from "@/graphql/geospatial";
 import {
   labelForRegionCode,
@@ -47,16 +52,19 @@ export function FilterPanel({
 }: FilterPanelProps) {
   const { filters, setFilters, resetFilters } = useMapStore();
 
-  const { data: regionsData, loading: loadingRegions } = useQuery(GET_REGIONS);
+  const { data: regionsData, loading: loadingRegions } =
+    useQuery<RegionsQueryData>(GET_REGIONS);
   const [getDepartements, { data: deptData, loading: loadingDepts }] =
-    useLazyQuery(GET_DEPARTEMENTS);
+    useLazyQuery<DepartementsQueryData, DepartementsQueryVariables>(
+      GET_DEPARTEMENTS,
+    );
   const [getCommunes, { data: communeData, loading: loadingCommunes }] =
-    useLazyQuery(GET_COMMUNES);
+    useLazyQuery<CommunesQueryData, CommunesQueryVariables>(GET_COMMUNES);
 
   const [wfsCommunes, setWfsCommunes] = useState<CommuneOption[]>([]);
 
   const sortedRegionCodes = useMemo(() => {
-    const list = regionsData?.regions as string[] | undefined;
+    const list = regionsData?.regions;
     if (list?.length) {
       return [...list].sort((a, b) => a.localeCompare(b, "fr"));
     }
@@ -79,7 +87,7 @@ export function FilterPanel({
 
   const departmentOptions = useMemo(() => {
     if (!filters.regionCode) return [];
-    const api = (deptData?.departements ?? []) as string[];
+    const api = deptData?.departements ?? [];
     const filtered = api.filter((d) => allowedDeptsForRegion.includes(d));
     const fromApi = sortDepartementCodes(filtered);
     if (fromApi.length > 0) return fromApi;
@@ -96,7 +104,7 @@ export function FilterPanel({
   );
 
   const communeOptions = useMemo((): CommuneOption[] => {
-    const api = (communeData?.communes ?? []) as string[];
+    const api = communeData?.communes ?? [];
     if (api.length > 0) {
       return [...api]
         .sort((a, b) => a.localeCompare(b, "fr", { numeric: true }))

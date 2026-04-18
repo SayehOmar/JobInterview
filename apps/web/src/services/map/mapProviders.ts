@@ -35,10 +35,10 @@ function cartoRasterStyle(styleKey: MapStyleKey) {
         : ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'];
 
   return {
-    version: 8,
+    version: 8 as const,
     sources: {
       basemap: {
-        type: 'raster',
+        type: 'raster' as const,
         tiles,
         tileSize: 256,
         attribution:
@@ -50,7 +50,7 @@ function cartoRasterStyle(styleKey: MapStyleKey) {
     layers: [
       {
         id: 'basemap',
-        type: 'raster',
+        type: 'raster' as const,
         source: 'basemap',
       },
     ],
@@ -126,7 +126,7 @@ async function createMapLibreRuntime(args: MapInitArgs): Promise<MapRuntime> {
     displayControlsDefault: false,
     defaultMode: 'simple_select',
   });
-  map.addControl(draw, 'top-left');
+  map.addControl(draw as unknown as Parameters<maplibregl.Map['addControl']>[0], 'top-left');
 
   return {
     provider: 'maplibre',
