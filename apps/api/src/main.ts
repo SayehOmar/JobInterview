@@ -5,15 +5,17 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
   app.enableCors({
-    origin: 'http://localhost:3000',
+    origin: webOrigin,
     credentials: true,
   });
 
   app.useGlobalPipes(new ValidationPipe());
 
-  const port = process.env.PORT || 4000;
-  await app.listen(port);
+  const port = Number(process.env.PORT) || 4000;
+  const host = process.env.HOST ?? '0.0.0.0';
+  await app.listen(port, host);
   console.log(`🚀 Server running on http://localhost:${port}/graphql`);
 }
 bootstrap();

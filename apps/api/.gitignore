@@ -16,6 +16,7 @@ Thumbs.db
 
 # Environment files
 .env
+.env.example
 .env.local
 **/apps/api/.env*       # all env files from api folder
 **/apps/web/.env*       # all env files from web folder

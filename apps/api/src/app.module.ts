@@ -21,6 +21,10 @@ import { Request, Response } from 'express';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
+        const syncExplicit =
+          configService.get<string>('DATABASE_SYNCHRONIZE') === 'true';
+        const synchronize =
+          syncExplicit || nodeEnv === 'development';
         return {
           type: 'postgres' as const,
           host: configService.get<string>('DATABASE_HOST') ?? 'localhost',
@@ -29,7 +33,7 @@ import { Request, Response } from 'express';
           password: configService.get<string>('DATABASE_PASSWORD') ?? '',
           database: configService.get<string>('DATABASE_NAME') ?? 'forest_bd_viewer',
           entities: [User, ForestPlot, UserPolygon, PolygonFolder],
-          synchronize: nodeEnv === 'development', // Auto-create tables in dev
+          synchronize,
           logging: nodeEnv === 'development',
         };
       },

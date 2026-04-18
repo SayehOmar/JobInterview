@@ -26,9 +26,10 @@ yarn.lock
 # Environment files
 # =========================
 .env
+.env.example
 .env.*
 !.env.example
-
+apps/api/.env.example
 # =========================
 # Build outputs
 # =========================
@@ -48,6 +49,7 @@ out/
 # =========================
 apps/api/dist/
 apps/api/coverage/
+
 
 # =========================
 # Database package build

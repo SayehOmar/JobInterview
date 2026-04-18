@@ -1,0 +1,41 @@
+# Dependencies & caches
+node_modules
+**/node_modules
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.turbo
+**/.turbo
+
+# Build outputs (rebuilt in image)
+.next
+**/.next
+**/dist
+**/coverage
+
+# Git & IDE
+.git
+.gitignore
+.vscode
+.idea
+
+# Env (never bake secrets into images)
+.env
+.env.*
+!.env.example
+**/apps/api/.env
+**/apps/web/.env
+
+# Local / docs
+my work
+out
+*.md
+!README.md
+
+# Tests & misc
+**/test
+**/*.spec.ts
+**/__tests__
+coverage
+tmp
+temp

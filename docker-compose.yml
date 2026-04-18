@@ -1,0 +1,60 @@
+# Postgres in Docker uses its own data volume — it is NOT your existing dev database.
+# To use the PostgreSQL already installed on your machine (same data as npm dev), use:
+#   docker compose -f docker-compose.host-db.yml up --build
+# Same `.env` as dev works; DATABASE_HOST is overridden to host.docker.internal in that file.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: forest_bd_viewer
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      HOST: 0.0.0.0
+      WEB_ORIGIN: http://localhost:3000
+      DATABASE_HOST: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: postgres
+      DATABASE_NAME: forest_bd_viewer
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      DATABASE_SYNCHRONIZE: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4000/graphql
+    ports:
+      - "3000:3000"
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
